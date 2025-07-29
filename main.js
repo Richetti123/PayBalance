@@ -1,22 +1,15 @@
 import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
-// Aquí importamos makeWASocket como DEFAULT export desde Baileys
-// y las demás utilidades como NAMED exports.
-import makeWASocket, { // <-- ¡CORRECCIÓN CLAVE AQUÍ! makeWASocket es un default export
-    useMultiFileAuthState,
-    makeInMemoryStore,
-    PHONENUMBER_MCC,
-    DisconnectReason,
-    delay
-} from '@whiskeysockets/baileys';
+// Importamos todo el módulo de Baileys como 'Baileys'
+import * as Baileys from '@whiskeysockets/baileys'; // <-- ¡CORRECCIÓN CLAVE AQUÍ!
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto (corregida previamente)
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -45,16 +38,19 @@ setInterval(() => {
 */
 
 // --- Almacenamiento en Memoria para Baileys ---
-const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
+// Accedemos a makeInMemoryStore desde el objeto Baileys
+const store = Baileys.makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
 
 // --- Cache para mensajes ---
 const msgRetryCounterCache = new NodeCache();
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
+    // Accedemos a useMultiFileAuthState desde el objeto Baileys
+    const { state, saveCreds } = await Baileys.useMultiFileAuthState('sessions'); 
 
-    const sock = makeWASocket({
+    // Aquí usamos Baileys.default() para makeWASocket, que es la exportación por defecto
+    const sock = Baileys.default({ // <-- ¡CORRECCIÓN CLAVE AQUÍ!
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
@@ -82,25 +78,26 @@ async function startBot() {
 
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-            if (reason === DisconnectReason.badSession) {
+            // Accedemos a DisconnectReason desde el objeto Baileys
+            if (reason === Baileys.DisconnectReason.badSession) { 
                 console.log(`Bad Session File, Please Delete and Scan Again`);
                 process.exit();
-            } else if (reason === DisconnectReason.connectionClosed) {
+            } else if (reason === Baileys.DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
                 startBot();
-            } else if (reason === DisconnectReason.connectionLost) {
+            } else if (reason === Baileys.DisconnectReason.connectionLost) {
                 console.log("Connection Lost from Server, reconnecting...");
                 startBot();
-            } else if (reason === DisconnectReason.connectionReplaced) {
+            } else if (reason === Baileys.DisconnectReason.connectionReplaced) {
                 console.log("Connection Replaced, Another new session opened, Please Close current session first");
                 process.exit();
-            } else if (reason === DisconnectReason.loggedOut) {
+            } else if (reason === Baileys.DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
                 process.exit();
-            } else if (reason === DisconnectReason.restartRequired) {
+            } else if (reason === Baileys.DisconnectReason.restartRequired) {
                 console.log("Restart Required, Restarting...");
                 startBot();
-            } else if (reason === DisconnectReason.timedOut) {
+            } else if (reason === Baileys.DisconnectReason.timedOut) {
                 console.log("Connection TimedOut, Reconnecting...");
                 startBot();
             } else {
