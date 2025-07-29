@@ -5,7 +5,6 @@ import makeWASocket, {
     useMultiFileAuthState,
     makeInMemoryStore,
     PHONENUMBER_MCC, // Aunque no se usa directamente en este main, puede ser requerido por Baileys internamente.
-    WAMessageContent, // Lo mismo
     DisconnectReason,
     delay
 } from '@whiskeysockets/baileys';
@@ -13,18 +12,13 @@ import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
-// import { exec } from 'child_process'; // Removido, no parece usarse en esta versión simplificada
-import { get, set } from 'lodash'; // Removido si no se usa para global.db.data directamente en main.js
 import Datastore from '@seald-io/nedb';
-import { sendAutomaticPaymentReminders } from './plugins/recordatorios.js'; // <-- RUTA ACTUALIZADA AQUÍ
+import { sendAutomaticPaymentReminders } from './plugins/recordatorios.js'; // RUTA ACTUALIZADA
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
 
 // --- Configuración de la Base de Datos Nedb ---
-// La lógica de `global.db.data.users` es para Nedb, no para un `database.json` directo.
-// El `database.json` se usa como un respaldo/snapshot de los datos en memoria si se usaran así.
-// Las colecciones de Nedb son los archivos .db reales.
 global.db = {
     data: {
         users: {},
@@ -43,25 +37,20 @@ collections.forEach(collection => {
 });
 
 // Guardar la base de datos en JSON (opcional, pero puede ser útil para backup)
+// He dejado esta sección comentada como en la versión anterior.
+// Si realmente necesitas un database.json con los contenidos de Nedb, deberías
+// leer los documentos de cada colección y luego serializarlos.
+// Por ahora, la persistencia principal es en los archivos .db de Nedb.
+/*
 setInterval(() => {
-    // Asegurarse de que las colecciones Nedb hayan cargado los datos en memoria antes de intentar guardarlos en database.json
-    // En un bot de pagos, 'users' será la colección más activa.
-    // Esto es un 'snapshot' y no la fuente principal de verdad para Nedb.
     let dataToSave = {};
-    if (global.db.data.users) dataToSave.users = global.db.data.users; // No se puede serializar un objeto Nedb directamente
-    if (global.db.data.chats) dataToSave.chats = global.db.data.chats;
-    if (global.db.data.settings) dataToSave.settings = global.db.data.settings;
-
     // Para guardar los datos de Nedb en JSON, necesitas exportarlos primero.
-    // Nedb no expone directamente un método para obtener todos los documentos en una forma serializable fácilmente para esto.
-    // Si realmente necesitas un database.json con los contenidos de Nedb, deberías leer los documentos de cada colección.
-    // Por simplicidad para el bot de cobros, y dado que la principal persistencia es en los .db, podríamos omitir esto.
-    // Sin embargo, si tu bot original lo usa para alguna configuración, déjalo.
-    // Por ahora, lo dejaré comentado para evitar errores de serialización si no se maneja bien.
+    // Esto es complejo ya que Nedb no expone directamente un método para obtener todos los documentos
+    // en una forma serializable fácilmente para esto.
+    // Si necesitas esto, deberías leer los docs de cada colección y luego serializar.
     // writeFileSync('./src/database.json', JSON.stringify(dataToSave, null, 2));
-
-}, 30 * 1000); // Guardar cada 30 segundos (si se habilita lo de arriba)
-
+}, 30 * 1000); // Guardar cada 30 segundos
+*/
 
 // --- Almacenamiento en Memoria para Baileys ---
 const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
