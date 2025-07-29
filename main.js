@@ -1,19 +1,23 @@
-import { Boom } from '@hapi/boom';
+import { Boom } = '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
-import makeWASocket, {
+// Aquí importamos makeWASocket desde nuestro archivo simple.js (que es un wrapper)
+import { makeWASocket } from './lib/simple.js'; // <-- ¡CORRECCIÓN CLAVE AQUÍ!
+// Las demás utilidades de Baileys que necesitamos directamente en main.js
+import {
     useMultiFileAuthState,
-    makeInMemoryStore,
+    makeInMemoryStore, // <-- makeInMemoryStore sí es una importación directa de Baileys
     PHONENUMBER_MCC,
     DisconnectReason,
     delay
-} from '@whiskeysockets/baileys';
+} from '@whiskeysockets/baileys'; // <-- Directamente de Baileys
+
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // <-- CORRECCIÓN AQUÍ: Importación por defecto
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto (corregida previamente)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -34,11 +38,10 @@ collections.forEach(collection => {
     global.db.data[collection].loadDatabase();
 });
 
-// Guardar la base de datos en JSON (opcional, pero puede ser útil para backup)
+// Guardar la base de datos en JSON (opcional, se mantiene comentada)
 /*
 setInterval(() => {
     let dataToSave = {};
-    // La serialización de Nedb a JSON para backup es más compleja, se mantiene comentada por simplicidad.
 }, 30 * 1000);
 */
 
@@ -52,7 +55,7 @@ const msgRetryCounterCache = new NodeCache();
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
-    const sock = makeWASocket({
+    const sock = makeWASocket({ // <-- Ahora esta función es la exportada por nuestro simple.js
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
@@ -107,9 +110,7 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
-            // --- Iniciar los recordatorios automáticos una vez que el bot esté conectado ---
             sendAutomaticPaymentReminders(sock);
-            // Ejecutar recordatorios cada 24 horas (ajusta el intervalo según necesites)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
         }
     });
