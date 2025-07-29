@@ -1,21 +1,22 @@
-import Boom from '@hapi/boom'; // <-- ¡CORRECCIÓN CLAVE AQUÍ! Importación por defecto
+import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
-import { makeWASocket } from './lib/simple.js'; // Importamos makeWASocket desde nuestro simple.js
-import {
+// Aquí importamos makeWASocket como DEFAULT export desde Baileys
+// y las demás utilidades como NAMED exports.
+import makeWASocket, { // <-- ¡CORRECCIÓN CLAVE AQUÍ! makeWASocket es un default export
     useMultiFileAuthState,
     makeInMemoryStore,
     PHONENUMBER_MCC,
     DisconnectReason,
     delay
-} from '@whiskeysockets/baileys'; // Importaciones directas de Baileys
+} from '@whiskeysockets/baileys';
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto (corregida previamente)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
