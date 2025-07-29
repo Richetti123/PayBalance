@@ -1,4 +1,4 @@
-import { Boom } = '@hapi/boom';
+import { Boom } '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
 // Aquí importamos makeWASocket desde nuestro archivo simple.js (que es un wrapper)
