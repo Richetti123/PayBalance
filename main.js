@@ -1,23 +1,21 @@
-import { Boom } '@hapi/boom';
+import Boom from '@hapi/boom'; // <-- ¡CORRECCIÓN CLAVE AQUÍ! Importación por defecto
 import NodeCache from 'node-cache';
 import P from 'pino';
-// Aquí importamos makeWASocket desde nuestro archivo simple.js (que es un wrapper)
-import { makeWASocket } from './lib/simple.js'; // <-- ¡CORRECCIÓN CLAVE AQUÍ!
-// Las demás utilidades de Baileys que necesitamos directamente en main.js
+import { makeWASocket } from './lib/simple.js'; // Importamos makeWASocket desde nuestro simple.js
 import {
     useMultiFileAuthState,
-    makeInMemoryStore, // <-- makeInMemoryStore sí es una importación directa de Baileys
+    makeInMemoryStore,
     PHONENUMBER_MCC,
     DisconnectReason,
     delay
-} from '@whiskeysockets/baileys'; // <-- Directamente de Baileys
+} from '@whiskeysockets/baileys'; // Importaciones directas de Baileys
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto (corregida previamente)
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -55,7 +53,7 @@ const msgRetryCounterCache = new NodeCache();
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
-    const sock = makeWASocket({ // <-- Ahora esta función es la exportada por nuestro simple.js
+    const sock = makeWASocket({
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
