@@ -1,8 +1,8 @@
 import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
-// Importamos todo el módulo de Baileys como 'Baileys'
-import * as Baileys from '@whiskeysockets/baileys'; // <-- ¡CORRECCIÓN CLAVE AQUÍ!
+// No importamos Baileys aquí de forma estática.
+// Lo haremos dinámicamente dentro de la función startBot.
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -30,27 +30,29 @@ collections.forEach(collection => {
     global.db.data[collection].loadDatabase();
 });
 
-// Guardar la base de datos en JSON (opcional, se mantiene comentada)
-/*
-setInterval(() => {
-    let dataToSave = {};
-}, 30 * 1000);
-*/
-
-// --- Almacenamiento en Memoria para Baileys ---
-// Accedemos a makeInMemoryStore desde el objeto Baileys
-const store = Baileys.makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
-
-// --- Cache para mensajes ---
+// Cache para mensajes
 const msgRetryCounterCache = new NodeCache();
+
+// Declarar 'store' fuera de la función, pero inicializarlo dentro
+// o una vez que Baileys esté cargado. Por ahora, lo inicializaremos dentro
+// de startBot una vez que tengamos acceso a makeInMemoryStore.
+let store;
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    // Accedemos a useMultiFileAuthState desde el objeto Baileys
+    // Importación dinámica de Baileys aquí
+    const Baileys = await import('@whiskeysockets/baileys');
+
+    // Ahora, accedemos a las funciones de Baileys desde el objeto 'Baileys'
+    // Intentaremos obtener makeWASocket de la exportación por defecto, si no, del objeto principal.
+    const makeWASocket = Baileys.default || Baileys.makeWASocket;
+
+    // Inicializar store aquí, después de que Baileys esté cargado
+    store = Baileys.makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
+
     const { state, saveCreds } = await Baileys.useMultiFileAuthState('sessions'); 
 
-    // Aquí usamos Baileys.default() para makeWASocket, que es la exportación por defecto
-    const sock = Baileys.default({ // <-- ¡CORRECCIÓN CLAVE AQUÍ!
+    const sock = makeWASocket({ // Usamos la función makeWASocket obtenida dinámicamente
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
@@ -78,7 +80,6 @@ async function startBot() {
 
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-            // Accedemos a DisconnectReason desde el objeto Baileys
             if (reason === Baileys.DisconnectReason.badSession) { 
                 console.log(`Bad Session File, Please Delete and Scan Again`);
                 process.exit();
