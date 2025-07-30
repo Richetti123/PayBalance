@@ -1,15 +1,14 @@
-import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
-import { smsg } from './lib/simple.js'; // <-- RUTA CORRECTA
+import { generateWAMessageFromContent } from '@whiskeysockets/baileys'; // Esta importación de Baileys está bien aquí
+import { smsg } from './lib/simple.js'; // <-- RUTA CORRECTA, y ahora simple.js estará bien
 import { format } from 'util';
+import path from 'path'; // Consolidado
 import { fileURLToPath } from 'url';
-import path, { join } from 'path';
-import { unwatchFile, watchFile } from 'fs'; // No se usan en handler simplificado, se pueden remover
 import fs from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { manejarRespuestaPago } from './lib/respuestapagos.js'; // <-- RUTA ACTUALIZADA AQUÍ
-import { handleIncomingMedia } from './lib/comprobantes.js'; // <-- RUTA ACTUALIZADA AQUÍ
-import { isPaymentProof } from './lib/keywords.js'; // <-- RUTA ACTUALIZADA AQUÍ
+import { manejarRespuestaPago } from './lib/respuestapagos.js';
+import { handleIncomingMedia } from './lib/comprobantes.js';
+import { isPaymentProof } from './lib/keywords.js';
 
 // Definición de __dirname para módulos ES
 const __filename = fileURLToPath(import.meta.url);
@@ -96,14 +95,14 @@ export async function handler(m, conn, store) {
             case 'registrarpago':
                 // Solo el propietario del bot debería poder registrar pagos
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js'); // <-- RUTA ACTUALIZADA AQUÍ
+                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                 await registrarPagoHandler(m, { conn, text: textArgs, command, usedPrefix: prefix });
                 break;
 
             case 'recordatorio':
                 // Solo el propietario del bot debería poder enviar recordatorios manuales
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: recordatorioHandler } = await import('./lib/recordatorio.js'); // <-- RUTA ACTUALIZADA AQUÍ
+                const { handler: recordatorioHandler } = await import('./lib/recordatorio.js');
                 await recordatorioHandler(m, { conn, text: textArgs, command, usedPrefix: prefix });
                 break;
 
@@ -142,15 +141,3 @@ export async function handler(m, conn, store) {
         console.error('Error en handler:', e);
     }
 }
-
-
-// --- Adaptaciones y utilidades (la función smsg ya está en lib/simple.js) ---
-// La función smsg ya no se incluye aquí porque se importa desde lib/simple.js
-// y solo se llama desde aquí.
-
-
-// **IMPORTANTE**: La función `smsg` en `lib/simple.js` es la que define `m.isOwner`.
-// Asegúrate de que la línea para definir `m.isOwner` en `lib/simple.js` esté correcta
-// y apunte a tu número de WhatsApp del administrador de este bot de cobros.
-// Ejemplo en lib/simple.js:
-// m.isOwner = m.sender === 'TU_NUMERO_DE_WHATSAPP_ADMIN@s.whatsapp.net';
