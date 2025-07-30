@@ -18,8 +18,26 @@ import { fileURLToPath } from 'url';
 import Datastore from '@seald-io/nedb';
 import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
+// Importar PhoneNumberUtil para validación y normalización
+import pkg from 'google-libphonenumber';
+const { PhoneNumberUtil } = pkg;
+const phoneUtil = PhoneNumberUtil.getInstance();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
+
+// --- Función para normalizar números de teléfono ---
+function normalizePhoneNumber(number) {
+    let cleanedNumber = number.replace(/\s+/g, ''); // Eliminar todos los espacios
+    if (!cleanedNumber.startsWith('+')) {
+        cleanedNumber = `+${cleanedNumber}`; // Añadir '+' si falta
+    }
+    // **CORRECCIÓN CLAVE PARA NÚMEROS DE MÉXICO (+521 a +52)**
+    if (cleanedNumber.startsWith('+521')) {
+        cleanedNumber = cleanedNumber.replace('+521', '+52');
+    }
+    return cleanedNumber;
+}
 
 // --- Configuración de la Base de Datos Nedb ---
 global.db = {
@@ -92,21 +110,27 @@ async function startBot() {
     if (connectionMethod === 'qr') {
         sock = makeWASocket(authConfig);
     } else { // connectionMethod === 'code'
-        // Creamos el socket sin las opciones de pairingCode y phoneNumber aquí
         sock = makeWASocket({
             ...authConfig,
-            qrTimeoutMs: undefined // Mantener esto, es inofensivo aquí
+            qrTimeoutMs: undefined
         });
 
-        // Solicitamos el número de teléfono *después* de que el socket está creado
-        const phoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
-        if (!phoneNumber || !/^\d+$/.test(phoneNumber)) {
-            console.error('Número de teléfono inválido. Reinicia el bot y provee un número válido.');
+        const rawPhoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
+        
+        const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
+
+        try {
+            if (!phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))) {
+                console.error('Número de teléfono inválido o en formato incorrecto después de la normalización. Asegúrate de que es un número de WhatsApp válido.');
+                rl.close();
+                return;
+            }
+        } catch (e) {
+            console.error('Error de validación del número con libphonenumber:', e.message);
             rl.close();
             return;
         }
 
-        // Solicitamos el código de emparejamiento explícitamente
         try {
             const code = await sock.requestPairingCode(phoneNumber);
             console.log(`╔═══════════════════════════`);
@@ -121,10 +145,6 @@ async function startBot() {
             rl.close();
             return;
         }
-
-        // Ya no necesitamos un listener específico para 'connection.update' y pairingCode aquí,
-        // porque requestPairingCode nos da el código directamente.
-        // El listener principal de connection.update manejará los estados 'open'/'close'.
     }
 
     store.bind(sock.ev);
@@ -164,13 +184,19 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
+            // Programar los recordatorios automáticos
             sendAutomaticPaymentReminders(sock);
+            // Intervalo para enviar recordatorios cada 24 horas (24 * 60 * 60 * 1000 ms)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
             rl.close();
         }
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    // Diagnóstico: Añadir un log para ver si creds.update se dispara
+    sock.ev.on('creds.update', () => {
+        console.log('✅ Credenciales actualizadas/guardadas. Verifique la carpeta "Richetti".');
+        saveCreds(); // Asegúrate de que saveCreds se siga llamando
+    });
 
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
