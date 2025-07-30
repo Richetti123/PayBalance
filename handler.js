@@ -1,7 +1,7 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
-import { fileURLToPath } from 'url'; // <-- CORREGIDO AQUÍ
+import { fileURLToPath } from 'url'; // Corrected import
 import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
@@ -10,7 +10,7 @@ import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 
-const __filename = fileURLToPath(import.meta.url); // <-- Y AQUÍ
+const __filename = fileURLToPath(import.meta.url); // Corrected usage
 const __dirname = path.dirname(__filename);
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
@@ -37,19 +37,27 @@ export async function handler(m, conn, store) {
 
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
-
+        
+        // Convertir explícitamente a string. Si es undefined/null, se convertirá en "undefined" o "null".
+        // Esto asegura que `split()` siempre pueda ser llamado, aunque el resultado sea "undefined".
         senderJid = String(senderJid); 
 
-        if (senderJid === 'undefined' || senderJid === 'null' || !senderJid) { 
-            console.warn('Mensaje recibido sin un senderJid válido (o no se pudo convertir a string). Ignorando este mensaje.');
-            return; 
-        }
+        let senderNumber = 'Desconocido';
+        let senderName = m.pushName || 'Desconocido';
 
-        const senderNumber = senderJid.split('@')[0]; 
-        const senderName = m.pushName || 'Desconocido';
+        // Solo intentar dividir si senderJid es una cadena que no sea "undefined" o "null"
+        if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
+             senderNumber = senderJid.split('@')[0]; 
+        } else {
+            console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
+            // Podrías decidir si quieres retornar aquí o continuar con "Desconocido"
+            // Por ahora, continuaremos con "Desconocido" para senderNumber.
+            // Si el resto del bot depende de un senderJid válido, es mejor un 'return'.
+            // Para depuración, mantengamos el log y continuemos.
+        }
         
         let groupName = 'Chat Privado';
-        if (m.key.remoteJid.endsWith('@g.us')) {
+        if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) { // Añadida verificación para m.key.remoteJid
             try {
                 const groupMetadata = await conn.groupMetadata(m.key.remoteJid);
                 groupName = groupMetadata.subject || 'Grupo Desconocido';
@@ -66,7 +74,7 @@ export async function handler(m, conn, store) {
 
         console.log(
             `╭━━━━━━━━━━━━━━𖡼\n` +
-            `┃ ❖ Bot: ${conn.user.jid.split(':')[0].replace(':', '')} ~${conn.user.name || 'Bot'}\n` +
+            `┃ ❖ Bot: ${conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A'} ~${conn.user?.name || 'Bot'}\n` + // Más robusto para conn.user
             `┃ ❖ Horario: ${new Date().toLocaleTimeString()}\n` +
             `┃ ❖ Acción: ${commandForLog ? `Comando: ${commandForLog}` : 'Mensaje'}\n` +
             `┃ ❖ Usuario: +${senderNumber} ~${senderName}\n` +
@@ -79,9 +87,17 @@ export async function handler(m, conn, store) {
 
         m = smsg(conn, m); 
 
+        // Si después de smsg, m.sender no es válido, salimos.
+        // Esto es crucial para la lógica de la DB que usa m.sender.
+        if (!m.sender) {
+            console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
+            return;
+        }
+
         // Inicializar datos del usuario en la base de datos Nedb si no existen
+        // Ahora usamos m.sender ya procesado por smsg, que es más fiable para la DB.
         let userDoc = await new Promise((resolve, reject) => {
-            global.db.data.users.findOne({ id: senderJid }, (err, doc) => {
+            global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                 if (err) reject(err);
                 resolve(doc);
             });
@@ -89,7 +105,7 @@ export async function handler(m, conn, store) {
 
         if (!userDoc) {
             userDoc = {
-                id: senderJid,
+                id: m.sender, // Usar m.sender aquí
                 awaitingPaymentResponse: false,
                 paymentClientName: '',
                 paymentClientNumber: ''
