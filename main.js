@@ -40,7 +40,6 @@ collections.forEach(collection => {
 });
 
 // --- Almacenamiento en Memoria para Baileys ---
-// El nivel de log de 'store' puede ser 'silent' ya que los mensajes de eventos son los que importan para el usuario.
 const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
 
 // --- Interfaz para leer entrada del usuario ---
@@ -52,15 +51,29 @@ const rl = readline.createInterface({
 const question = (query) => new Promise(resolve => rl.question(query, resolve));
 
 async function startBot() {
-    // CAMBIO CLAVE AQUÍ: La carpeta de sesión ahora es 'Richetti'
-    const { state, saveCreds } = await useMultiFileAuthState('Richetti'); 
-    const { version, isLatest } = await fetchLatestBaileysVersion(); // 'isUpdating' fue renombrado a 'isLatest' en versiones recientes
+    const { state, saveCreds } = await useMultiFileAuthState('Richetti');
+    const { version, isLatest } = await fetchLatestBaileysVersion();
 
     console.log(`Usando Baileys versión: ${version.join('.')}`);
 
+    let connectionMethod = null;
+
+    // Bucle para pedir la opción hasta que sea válida
+    while (connectionMethod === null) {
+        const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
+
+        if (choice === '1') {
+            connectionMethod = 'qr';
+        } else if (choice === '2') {
+            connectionMethod = 'code';
+        } else {
+            console.log('Opción no válida. Por favor, ingresa 1 o 2.');
+        }
+    }
+
     const authConfig = {
-        logger: P({ level: 'silent' }).child({ level: 'silent' }), // Puedes poner 'info' si quieres más logs de Baileys
-        printQRInTerminal: true,
+        logger: P({ level: 'silent' }).child({ level: 'silent' }),
+        printQRInTerminal: connectionMethod === 'qr', // Solo imprime QR si se eligió QR
         browser: ['RichettiBot', 'Safari', '1.0.0'],
         auth: {
             creds: state.creds,
@@ -78,20 +91,6 @@ async function startBot() {
     };
 
     let sock;
-    let connectionMethod = null;
-
-    // Bucle para pedir la opción hasta que sea válida
-    while (connectionMethod === null) {
-        const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
-
-        if (choice === '1') {
-            connectionMethod = 'qr';
-        } else if (choice === '2') {
-            connectionMethod = 'code';
-        } else {
-            console.log('Opción no válida. Por favor, ingresa 1 o 2.');
-        }
-    }
 
     if (connectionMethod === 'qr') {
         sock = makeWASocket(authConfig);
@@ -102,37 +101,35 @@ async function startBot() {
             rl.close();
             return;
         }
-        authConfig.qrTimeoutMs = undefined; // Desactiva el timeout de QR si usas código
+        
         sock = makeWASocket({
             ...authConfig,
+            qrTimeoutMs: undefined, // Desactiva el timeout de QR para el modo código
             pairingCode: true,
             phoneNumber: phoneNumber
-        });
-        
-        // Mover este listener aquí para que el código de emparejamiento se muestre inmediatamente
-        sock.ev.on('connection.update', async (update) => {
-            if (update.pairingCode && update.connection === 'connecting') {
-                console.log(`Tu código de 8 dígitos para vincular: ${update.pairingCode}`);
-            }
         });
     }
 
     store.bind(sock.ev); // Vincula el store después de inicializar sock
 
-    // --- Manejo de Eventos de Conexión ---
-    sock.ev.on('connection.update', async (update) => {
-        const { qr, isNewLogin, lastDisconnect, connection } = update;
 
-        if (qr && connectionMethod === 'qr') { // Solo muestra si se eligió QR
+    // --- Manejo de Eventos de Conexión (UNIFICADO) ---
+    sock.ev.on('connection.update', async (update) => {
+        const { qr, isNewLogin, lastDisconnect, connection, pairingCode } = update; // Añadir pairingCode al destructuring
+
+        if (connectionMethod === 'qr' && qr) { // Solo muestra QR si se eligió QR y el QR está presente
             console.log('QR Code recibido. Escanéalo con tu teléfono.');
-            // El QR se imprime automáticamente en la terminal por `printQRInTerminal: true`
+        }
+
+        if (connectionMethod === 'code' && pairingCode) { // Solo muestra código si se eligió código y está presente
+            console.log(`Tu código de 8 dígitos para vincular: ${pairingCode}`);
         }
 
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
             if (reason === DisconnectReason.badSession) {
                 console.log(`Bad Session File, Please Delete 'Richetti' folder and Scan Again.`);
-                // Opcional: fs.rmSync('Richetti', { recursive: true, force: true });
+                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
@@ -145,7 +142,7 @@ async function startBot() {
                 startBot();
             } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete 'Richetti' folder and Scan Again.`);
-                // Opcional: fs.rmSync('Richetti', { recursive: true, force: true });
+                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.restartRequired) {
                 console.log("Restart Required, Restarting...");
@@ -160,6 +157,7 @@ async function startBot() {
             sendAutomaticPaymentReminders(sock);
             // Intervalo para enviar recordatorios cada 24 horas (24 * 60 * 60 * 1000 ms)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
+            rl.close(); // Cerrar la interfaz readline una vez conectado
         }
     });
 
