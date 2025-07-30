@@ -165,4 +165,4 @@ handler.tags = ['pagos'];
 handler.command = /^(recordatoriolote)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
