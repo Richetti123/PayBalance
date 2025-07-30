@@ -7,9 +7,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let handler = async (m, { conn, text, command, usedPrefix }) => {
+// CAMBIO CLAVE AQUÍ: Exportamos directamente la función 'handler'
+export async function handler(m, { conn, text, command, usedPrefix }) {
     // Definimos la ruta del archivo de pagos.
-    // MODIFICACIÓN CLAVE AQUÍ: SOLO UN '..'
     const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json');
 
     const args = text.split(' ').map(arg => arg.trim());
@@ -60,11 +60,13 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
         console.error('Error al procesar el comando .registrarpago:', e);
         m.reply(`❌ Ocurrió un error interno al intentar añadir el cliente. Por favor, reporta este error.`);
     }
-};
+} // <--- ¡Asegúrate de que esta llave de cierre es correcta y no hay un 'let handler =' anterior!
 
+// Estas propiedades se pueden añadir directamente a la función 'handler' exportada
 handler.help = ['registrarpago <nombre> <numero> <diaPago> <monto> <bandera>'];
 handler.tags = ['pagos'];
 handler.command = /^(registrarpago|agregarcliente)$/i;
 handler.owner = true;
 
-export default handler;
+// <--- ¡Eliminar esta línea! Ya no se necesita 'export default handler;'
+// export default handler;
