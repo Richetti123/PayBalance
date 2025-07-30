@@ -74,7 +74,7 @@ export async function handler(m, conn, store) {
             chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' + 
             chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
             chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`Contenido: ${rawText || ' (Sin texto legible) '}`) // Contenido en gris para diferenciar
+            chalk.white(`${rawText || ' (Sin texto legible) '}`) // Contenido en gris para diferenciar
         );
         // --- FIN: Bloque para logging visual ---
 
