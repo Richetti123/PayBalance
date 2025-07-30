@@ -113,4 +113,4 @@ handler.tags = ['pagos'];
 handler.command = /^(pagosmes)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
