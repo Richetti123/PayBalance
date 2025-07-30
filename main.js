@@ -2,10 +2,11 @@ import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
 
+// Aquí importamos makeWASocket y makeInMemoryStore directamente de Baileys.
 import {
     makeWASocket,
     useMultiFileAuthState,
-    makeInMemoryStore,
+    makeInMemoryStore, // <--- Importamos makeInMemoryStore directamente
     DisconnectReason,
     delay
 } from '@whiskeysockets/baileys';
@@ -15,7 +16,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -37,7 +38,8 @@ collections.forEach(collection => {
 });
 
 // --- Almacenamiento en Memoria para Baileys ---
-const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
+// *** CAMBIO CLAVE: Inicializamos 'store' usando makeInMemoryStore() ***
+const store = makeInMemoryStore({ logger: P().child({ level: 'info', stream: 'store' }) }); // 'info' para ver logs
 
 // --- Cache para mensajes ---
 const msgRetryCounterCache = new NodeCache();
@@ -47,17 +49,16 @@ async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
     const sock = makeWASocket({
-        logger: P({ level: 'silent' }),
+        logger: P({ level: 'info' }).child({ level: 'info' }), // 'info' para ver logs en la consola
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
-        // *** CAMBIO CLAVE AQUÍ: PASAR EL OBJETO 'state' COMPLETO ***
         auth: state, 
-        // **********************************************************
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false
     });
 
+    // Ahora 'store' es la instancia correcta de InMemoryStore y tiene el método 'bind'
     store.bind(sock.ev);
 
     // --- Manejo de Eventos de Conexión ---
@@ -81,9 +82,6 @@ async function startBot() {
             } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
                 process.exit();
-            } else if (reason === DisconnectReason.restartRequired) {
-                console.log("Restart Required, Restarting...");
-                startBot();
             } else {
                 console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
                 startBot();
