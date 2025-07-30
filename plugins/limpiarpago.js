@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let handler = async (m, { conn, text, command, usedPrefix }) => {
+// CAMBIO CLAVE AQUÍ: Exportamos directamente la función 'handler'
+export async function handler(m, { conn, text, command, usedPrefix }) {
     // Definimos la ruta del archivo de pagos.
     const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json');
 
@@ -27,12 +28,10 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
 
         let found = false;
         let deletedClientName = '';
-        let deletedClientNumber = '';
-        
-        // Iterar sobre las claves (números de teléfono) para encontrar el nombre
-        // Se itera de esta forma porque la clave es el número, no el nombre.
+        let deletedClientNumber = ''; // Para almacenar el número del cliente eliminado
+
         for (const numberKey in clientsData) {
-            // Comparar nombres ignorando mayúsculas/minúsculas para una búsqueda más flexible
+            // Comparamos el nombre ignorando mayúsculas/minúsculas
             if (clientsData[numberKey].nombre.toLowerCase() === nameToDelete.toLowerCase()) {
                 deletedClientName = clientsData[numberKey].nombre; // Guardamos el nombre real del cliente
                 deletedClientNumber = numberKey; // Guardamos el número del cliente
@@ -54,11 +53,10 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
         console.error('Error al procesar el comando .limpiarpago:', e);
         m.reply(`❌ Ocurrió un error interno al intentar eliminar el cliente. Por favor, reporta este error.`);
     }
-};
+} // <--- Asegúrate de que esta llave de cierre es correcta
 
+// Estas propiedades se añaden directamente a la función 'handler' exportada
 handler.help = ['limpiarpago <nombre_del_cliente>'];
 handler.tags = ['pagos'];
 handler.command = /^(limpiarpago|eliminarcliente)$/i; // Puedes usar .limpiarpago o .eliminarcliente
-handler.owner = true; // Solo el dueño del bot puede usar este comando
-
-export default handler;
+handler.owner = true; // Solo el propietario puede usar este comando
