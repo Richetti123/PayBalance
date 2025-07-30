@@ -1,4 +1,4 @@
-import Boom from '@hapi/boom';
+import Boom from '@hapi/boom'; // La importación es correcta
 import NodeCache from 'node-cache';
 import P from 'pino';
 
@@ -75,7 +75,8 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update;
 
         if (connection === 'close') {
-            let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+            // CAMBIO CLAVE AQUÍ: Usamos Boom.boomify para procesar el error existente
+            let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode; 
             if (reason === DisconnectReason.badSession) { 
                 console.log(`Bad Session File, Please Delete and Scan Again`);
                 process.exit();
