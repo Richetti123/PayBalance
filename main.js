@@ -251,6 +251,31 @@ async function isValidPhoneNumber(number) {
     }
 }
 
+// Función para redefinir los métodos de consola y filtrar mensajes (tal como en tu original main (2).js)
+const filterStrings = [
+    "Q2xvc2luZyBzdGFsZSBvcGVu", // "Closing stable open"
+    "Q2xvc2luZyBvcGVuIHNlc3Npb24=", // "Closing open session"
+    "RmFpbGVkIHRvIGRlY3J5cHQ=", // "Failed to decrypt"
+    "U2Vzc2lvbiBlcnJvcg==", // "Session error"
+    "RXJyb3I6IEJhZCBNQUM=", // "Error: Bad MAC"
+    "RGVjcnlwdGVkIG1lc3NhZ2U=" // "Decrypted message"
+]
+
+function redefineConsoleMethod(methodName, filterStrings) {
+    const originalConsoleMethod = console[methodName]
+    console[methodName] = function() {
+        const message = arguments[0]
+        if (typeof message === 'string' && filterStrings.some(filterString => message.includes(atob(filterString)))) {
+            arguments[0] = ""
+        }
+        originalConsoleMethod.apply(console, arguments)
+    }
+}
+
+console.info = () => {}
+console.debug = () => {}
+['log', 'warn', 'error'].forEach(methodName => redefineConsoleMethod(methodName, filterStrings))
+
 
 // --- Función Principal de Conexión ---
 async function startBot() {
@@ -308,6 +333,27 @@ async function startBot() {
         saveCreds
     } = await useMultiFileAuthState('sessions');
 
+    // Si se eligió la opción de código, se pide el número si no se dio por argumento
+    if ((opcion === '2' || methodCode) && !existsSync('./sessions/creds.json')) {
+        if (!phoneNumber) {
+            let addNumber;
+            do {
+                phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
+                addNumber = phoneNumber.replace(/\D/g, ''); // Limpia el número
+                if (!addNumber.startsWith('521') && addNumber.length === 12 && addNumber.startsWith('52')) { // Manejo para 521XXXXXXXXXX -> 52XXXXXXXXXX
+                    addNumber = '52' + addNumber.substring(3); // Elimina el '1' después del 52
+                } else if (!addNumber.startsWith('+')) {
+                    addNumber = `+${addNumber}`;
+                }
+            } while (!await isValidPhoneNumber(addNumber));
+            phoneNumber = addNumber; // Actualiza phoneNumber con el número validado y limpiado
+        }
+        console.log(chalk.blue(`\nPor favor, espera. Si tu número (${phoneNumber}) es válido, se generará un código de 8 dígitos.`));
+        console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
+        // El código aparecerá automáticamente en la consola, ya que Baileys lo gestiona.
+    }
+
+
     const sock = makeWASocket({
         logger: P({
             level: 'silent'
@@ -318,14 +364,14 @@ async function startBot() {
         mobile: MethodMobile, // Habilita modo móvil si se usó --mobile
         // pairingCode: Pasa el número para generar el código de emparejamiento.
         // Se activa si se eligió opción 2 o se usó --code.
-        pairingCode: opcion == '2' || methodCode ? phoneNumber : undefined,
+        // Solo se pasa el pairingCode si no hay credenciales existentes y se eligió esa opción.
+        pairingCode: (opcion === '2' || methodCode) && !existsSync('./sessions/creds.json') ? phoneNumber : undefined,
         // --- FIN CONFIGURACIÓN CLAVE ---
         browser: opcion == '1' ? ['LogisticBot', 'Desktop', '3.0'] : methodCodeQR ? ['LogisticBot', 'Desktop', '3.0'] : ["Ubuntu", "Chrome", "20.0.04"], // Ajusta el navegador según la opción
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false,
-        // Añadido de tu main (2).js para Baileys
         cachedGroupMetadata: (jid) => global.conn.chats[jid] ?? {}, // Asume que global.conn.chats existe y está poblado
         version: [2, 2413, 51], // Puedes ajustar la versión si necesitas una específica
         keepAliveIntervalMs: 55000,
@@ -337,40 +383,6 @@ async function startBot() {
     
     // Asignar store a global.conn para compatibilidad con otros módulos que lo usen
     global.conn.store = store; 
-
-
-    // --- LÓGICA PARA SOLICITAR Y MOSTRAR EL CÓDIGO DE 8 DÍGITOS (tal como en tu main (2).js) ---
-    // Este bloque solo se ejecuta si NO hay credenciales guardadas y se eligió la opción de código.
-    if (!existsSync('./sessions/creds.json')) {
-        if (opcion === '2' || methodCode) {
-            opcion = '2'; // Asegura que la 'opcion' es 2
-            if (!global.conn.authState.creds.registered) {
-                let addNumber;
-                // Si el número ya fue pasado como argumento de línea de comandos (ej: node . --code 521xxxxxxxx)
-                if (!!phoneNumber) {
-                    addNumber = phoneNumber.replace(/[^0-9]/g, ''); // Limpia el número
-                } else { // Si no se pasó el número por línea de comandos, lo solicita interactivamente
-                    do {
-                        phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
-                        phoneNumber = phoneNumber.replace(/\D/g, '');
-                        if (!phoneNumber.startsWith('+')) {
-                            phoneNumber = `+${phoneNumber}`;
-                        }
-                    } while (!await isValidPhoneNumber(phoneNumber)); // Valida el número ingresado
-                    // No cerrar rl aquí, ya que se usa en connectionUpdate para el QR
-                    // rl.close(); 
-                }
-
-                // Pequeño retraso y luego solicita el código de emparejamiento y lo muestra
-                setTimeout(async () => {
-                    let codeBot = await global.conn.requestPairingCode(addNumber);
-                    codeBot = codeBot?.match(/.{1,4}/g)?.join("-") || codeBot;
-                    console.log(chalk.bold.white(chalk.bgMagenta(mid.pairingCode)), chalk.bold.white(chalk.white(codeBot)));
-                }, 2000); // Retraso de 2 segundos
-            }
-        }
-    }
-
 
     store.bind(sock.ev);
 
@@ -410,8 +422,8 @@ async function startBot() {
             setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000); // Cada 24 horas
         }
         
-        // Manejo de QR desde tu main (2).js
-        if (qr != 0 && qr != undefined || methodCodeQR) {
+        // Manejo de QR desde tu main (2).js (solo si no se usó el método de código y no hay credenciales)
+        if (qr != 0 && qr != undefined && !methodCode && !existsSync('./sessions/creds.json')) {
             if (opcion == '1' || methodCodeQR) {
                 console.log(chalk.bold.yellow(mid.mCodigoQR));
             }
