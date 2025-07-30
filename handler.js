@@ -1,7 +1,7 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'url'; // <-- CORREGIDO AQUÍ
 import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
@@ -10,7 +10,7 @@ import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 
-const __filename = fileURLToURL(import.meta.url);
+const __filename = fileURLToPath(import.meta.url); // <-- Y AQUÍ
 const __dirname = path.dirname(__filename);
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
@@ -38,14 +38,9 @@ export async function handler(m, conn, store) {
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
 
-        // *** AÑADIDO: Asegurarse que senderJid sea una cadena antes de usar split() ***
-        // Convertir explícitamente a string. Si es undefined/null, se convertirá en "undefined" o "null".
-        // Luego, split() funcionará sin TypeError.
         senderJid = String(senderJid); 
 
-        // Ahora, si el senderJid es "undefined" o "null" después de la conversión,
-        // podemos tratarlo como un remitente desconocido y salir.
-        if (senderJid === 'undefined' || senderJid === 'null' || !senderJid) { // También por si es una cadena vacía
+        if (senderJid === 'undefined' || senderJid === 'null' || !senderJid) { 
             console.warn('Mensaje recibido sin un senderJid válido (o no se pudo convertir a string). Ignorando este mensaje.');
             return; 
         }
@@ -83,7 +78,6 @@ export async function handler(m, conn, store) {
         // --- FIN: Bloque para logging visual ---
 
         m = smsg(conn, m); 
-        // Eliminado: if (!m.sender) { return; } -- La verificación de senderJid al inicio es suficiente
 
         // Inicializar datos del usuario en la base de datos Nedb si no existen
         let userDoc = await new Promise((resolve, reject) => {
