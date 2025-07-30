@@ -217,7 +217,7 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
 
         // Si se especificó un cliente por nombre y se encontró, enviar recordatorio solo a ese cliente
         const { diaPago, monto, bandera, nombre } = clientInfo;
-        const numeroSinPrefijo = phoneNumberKey.replace(/\+/g, ''); // <--- CORRECCIÓN APLICADA AQUÍ
+        const numeroSinPrefijo = phoneNumberKey.replace(/\+/g, ''); // CORRECCIÓN APLICADA AQUÍ
         const formattedTargetNumber = numeroSinPrefijo + '@s.whatsapp.net';
 
         console.log(`[DEBUG - Manual] Cliente encontrado: ${nombre} (${numeroSinPrefijo}). JID de destino: ${formattedTargetNumber}`);
@@ -323,3 +323,9 @@ CBU: 4530000800011127480736`;
         await conn.sendMessage(m.chat, { text: `❌ Ocurrió un error interno al enviar el recordatorio: ${error.message || error}` }, { quoted: m });
     }
 }
+
+// --- Líneas que faltaban y son CRUCIALES para el comando ---
+handler.help = ['recordatorio <nombre_cliente>']; // Actualizado para reflejar el uso de nombre
+handler.tags = ['pagos'];
+handler.command = /^(recordatorio|recordar)$/i; // Puedes añadir más alias si quieres
+handler.owner = true; // Solo el propietario puede usar este comando
