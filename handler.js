@@ -9,24 +9,22 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
-
-// --- NUEVAS IMPORTACIONES DE PLUGINS Y LIBS ---
-import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
-import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
-import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
-import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
-import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
-import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // Para .cambiarmonto
-import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
-import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
-import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
-import { handler as bienvenidaHandler } from './plugins/bienvenida.js'; // Para .bienvenida
-import { handler as despedidaHandler } from './plugins/despedida.js'; // Para .despedida
-import { handler as derivadosHandler } from './plugins/derivados.js'; // Para .derivados
-import { handler as ayudaHandler } from './plugins/ayuda.js'; // Para .ayuda o .comandos
-import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
-import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
-// --- FIN NUEVAS IMPORTACIONES ---
+import { handler as clienteHandler } from './plugins/cliente.js'; // 
+import { handler as historialPagosHandler } from './plugins/historialpagos.js'; 
+import { handler as pagosMesHandler } from './plugins/pagosmes.js'; 
+import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; 
+import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; 
+import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; 
+import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; 
+import { handler as modoPagoHandler } from './plugins/modopago.js'; 
+import { handler as estadoBotHandler } from './plugins/estadobot.js'; 
+import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
+import { handler as despedidaHandler } from './plugins/despedida.js'; 
+import { handler as derivadosHandler } from './plugins/derivados.js'; 
+import { handler as ayudaHandler } from './plugins/ayuda.js'; 
+import { handler as faqHandler } from './plugins/faq.js'; 
+import { handler as getfaqHandler } from './lib/getfaq.js'; 
+import { handler as importarPagosHandler } from './plugins/importarpagos.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -346,6 +344,12 @@ export async function handler(m, conn, store) {
             
             case 'getfaq': // Este es un comando interno, no se usa con prefijo directamente por el usuario
                 await getfaqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'importarpagos': // Nuevo comando para importar datos de pagos
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                // Asegúrate de pasar 'isOwner' al handler del plugin si lo usa internamente para validaciones
+                await importarPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                 break;
 
             // --- FIN NUEVOS COMANDOS INTEGRADOS ---
