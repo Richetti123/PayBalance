@@ -38,13 +38,11 @@ export async function handler(m, conn, store) {
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         
-        // Convertir explícitamente a string. Si es undefined/null, se convertirá en "undefined" o "null".
         senderJid = String(senderJid); 
 
         let senderNumber = 'Desconocido';
         let senderName = m.pushName || 'Desconocido';
 
-        // Solo intentar dividir si senderJid es una cadena que no sea "undefined" o "null"
         if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
              senderNumber = senderJid.split('@')[0]; 
         } else {
@@ -66,17 +64,17 @@ export async function handler(m, conn, store) {
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
         const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
 
-        // *** BLOQUE DE CONSOLE.LOG CON COLORES ***
+        // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
         console.log(
-            chalk.hex('#FFD700')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.cyan(`┃ ❖ Bot: ${chalk.green(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.green(conn.user?.name || 'Bot')}`) + '\n' +
-            chalk.cyan(`┃ ❖ Horario: ${chalk.magenta(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.cyan(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
-            chalk.cyan(`┃ ❖ Usuario: ${chalk.blue('+' + senderNumber)} ~${chalk.blue(senderName)}`) + '\n' +
-            chalk.cyan(`┃ ❖ Grupo: ${chalk.white.bold(groupName)}`) + '\n' + 
-            chalk.cyan(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
-            chalk.hex('#FFD700')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.hex('#FFA500')(`Contenido: ${rawText || ' (Sin texto legible) '}`) 
+            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' + // Naranja oscuro para los bordes
+            chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' + 
+            chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
+            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.gray(`Contenido: ${rawText || ' (Sin texto legible) '}`) // Contenido en gris para diferenciar
         );
         // --- FIN: Bloque para logging visual ---
 
