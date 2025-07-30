@@ -10,7 +10,8 @@ import {
     useMultiFileAuthState,
     makeInMemoryStore,
     DisconnectReason,
-    delay
+    delay,
+    fetchLatestBaileysVersion // Importar para obtener la última versión
 } from '@whiskeysockets/baileys';
 
 import {
@@ -83,7 +84,12 @@ global.lenguajeGB = {
     smsConexionreem: () => `[ ⚠️ ] CONEXIÓN REEMPLAZADA, SE HA ABIERTO OTRA NUEVA SESIÓN, CIERRE LA SESIÓN ACTUAL PRIMERO.`,
     smsConexionreinicio: () => `[ ⚠️ ] REQUERIDO REINICIO, RECONECTANDO...`,
     smsConexiontiem: () => `[ ⚠️ ] TIEMPO DE CONEXIÓN AGOTADO, RECONECTANDO...`,
-    smsConexiondescon: (reason, connection) => `[ ❌ ] MOTIVO DE DESCONEXIÓN DESCONOCIDO: ${reason || ''} ${connection || ''}`,
+    smsConexiondescon: (reason, connection) => {
+        let message = `[ ❌ ] MOTIVO DE DESCONEXIÓN DESCONOCIDO`;
+        if (reason) message += `: ${reason}`;
+        if (connection) message += ` | ${connection}`;
+        return message;
+    },
     smsWelcome: () => 'Bienvenido al grupo.',
     smsBye: () => 'Adiós del grupo.',
     smsSpromote: () => 'Fue promovido a administrador.',
@@ -253,7 +259,7 @@ async function isValidPhoneNumber(number) {
 
 // Función para redefinir los métodos de consola y filtrar mensajes (tal como en tu original main (2).js)
 const filterStrings = [
-    "Q2xvc2luZyBzdGFsZSBvcGVu", // "Closing stable open"
+    "Q2xvc2luZ2ggc3RhYmxlIG9wZW4=", // "Closing stable open"
     "Q2xvc2luZyBvcGVuIHNlc3Npb24=", // "Closing open session"
     "RmFpbGVkIHRvIGRlY3J5cHQ=", // "Failed to decrypt"
     "U2Vzc2lvbiBlcnJvcg==", // "Session error"
@@ -279,6 +285,11 @@ console.debug = () => {}
 
 // --- Función Principal de Conexión ---
 async function startBot() {
+    // Obtener la última versión de Baileys
+    const { version, is          latest } = await fetchLatestBaileysVersion()
+    console.log(chalk.cyan(`[ℹ️] Usando Baileys v${version.join('.')}${!isLatest ? ' (no es la última, considerar actualizar)' : ''}`));
+
+
     // 1. Analizar los argumentos de línea de comandos para ver si se forzó un modo
     const argv = yargs(process.argv.slice(2)).parse();
     
@@ -340,7 +351,8 @@ async function startBot() {
             do {
                 phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
                 addNumber = phoneNumber.replace(/\D/g, ''); // Limpia el número
-                if (!addNumber.startsWith('521') && addNumber.length === 12 && addNumber.startsWith('52')) { // Manejo para 521XXXXXXXXXX -> 52XXXXXXXXXX
+                // Manejo específico para números mexicanos que a veces vienen con '1' después del código de país
+                if (addNumber.startsWith('521') && addNumber.length === 12) { 
                     addNumber = '52' + addNumber.substring(3); // Elimina el '1' después del 52
                 } else if (!addNumber.startsWith('+')) {
                     addNumber = `+${addNumber}`;
@@ -373,7 +385,7 @@ async function startBot() {
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false,
         cachedGroupMetadata: (jid) => global.conn.chats[jid] ?? {}, // Asume que global.conn.chats existe y está poblado
-        version: [2, 2413, 51], // Puedes ajustar la versión si necesitas una específica
+        version: version, // Usar la versión obtenida dinámicamente
         keepAliveIntervalMs: 55000,
         maxIdleTimeMs: 60000,
     });
@@ -396,25 +408,48 @@ async function startBot() {
 
         if (connection === 'close') {
             let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode;
-            if (reason === DisconnectReason.badSession) {
-                console.log(chalk.red(`[❌] Archivo de sesión incorrecto, por favor elimina la carpeta 'sessions' y vuelve a escanear.`));
-                process.exit();
-            } else if (reason === DisconnectReason.connectionClosed) {
-                console.log(chalk.yellow(`[⚠️] Conexión cerrada, reconectando....`));
-                startBot();
-            } else if (reason === DisconnectReason.connectionLost) {
-                console.log(chalk.yellow(`[⚠️] Conexión perdida del servidor, reconectando...`));
-                startBot();
-            } else if (reason === DisconnectReason.connectionReplaced) {
-                console.log(chalk.red(`[❌] Conexión reemplazada, otra nueva sesión abierta. Por favor, cierra la sesión actual primero.`));
-                process.exit();
-            } else if (reason === DisconnectReason.loggedOut) {
-                console.log(chalk.red(`[❌] Dispositivo desconectado, por favor elimina la carpeta 'sessions' y vuelve a escanear.`));
-                process.exit();
-            } else {
-                console.log(chalk.red(`[❌] Razón de desconexión desconocida: ${reason}|${lastDisconnect.error}`));
-                startBot();
+            let errorMessage = '';
+
+            switch (reason) {
+                case DisconnectReason.badSession:
+                    errorMessage = `[❌] Archivo de sesión incorrecto, por favor elimina la carpeta 'sessions' y vuelve a escanear.`;
+                    process.exit();
+                    break;
+                case DisconnectReason.connectionClosed:
+                    errorMessage = `[⚠️] ${global.lenguajeGB.smsConexioncerrar()}`;
+                    startBot();
+                    break;
+                case DisconnectReason.connectionLost:
+                    errorMessage = `[⚠️] ${global.lenguajeGB.smsConexionperdida()}`;
+                    startBot();
+                    break;
+                case DisconnectReason.connectionReplaced:
+                    errorMessage = `[❌] ${global.lenguajeGB.smsConexionreem()}`;
+                    process.exit();
+                    break;
+                case DisconnectReason.loggedOut:
+                    errorMessage = `[❌] ${global.lenguajeGB.smsConexionOFF()}`;
+                    process.exit();
+                    break;
+                case DisconnectReason.restartRequired:
+                    errorMessage = `[⚠️] ${global.lenguajeGB.smsConexionreinicio()}`;
+                    startBot();
+                    break;
+                case DisconnectReason.timedOut:
+                    errorMessage = `[⚠️] ${global.lenguajeGB.smsConexiontiem()}`;
+                    startBot();
+                    break;
+                case 405: // Specific handling for 405 Connection Failure
+                    errorMessage = `[❌] Error de conexión (405): Posiblemente versión desactualizada o problema de red. Por favor, actualiza Baileys y verifica tu conexión a internet.`;
+                    startBot();
+                    break;
+                default:
+                    errorMessage = global.lenguajeGB.smsConexiondescon(reason, lastDisconnect.error?.message || '');
+                    startBot();
+                    break;
             }
+            console.log(chalk.red(errorMessage));
+
         } else if (connection === 'open') {
             console.log(chalk.green('[✅] Conexión abierta con WhatsApp.'));
             // Envía recordatorios al iniciar y luego cada 24 horas
