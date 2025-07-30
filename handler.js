@@ -12,7 +12,7 @@ import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
 import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
 import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
-import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
+import { handler as pagosAtrasadosHandler } = await import('./plugins/pagosatrasados.js'); // Para .pagosatrasados
 import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
 import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
 import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
@@ -49,7 +49,8 @@ const loadConfigBot = () => {
         modoPagoActivo: false,
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
-        faqs: {}
+        faqs: {},
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación con el botón.", // Nuevo campo
     };
 };
 
@@ -284,20 +285,11 @@ export async function handler(m, conn, store) {
                 await recordatorioLoteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
             
-            // REMOVIDO: case 'cambiarmonto': // <--- ¡Este case ha sido eliminado!
-            // REMOVIDO:     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-            // REMOVIDO:     await cambiarMontoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
-            // REMOVIDO:     break;
-
             case 'suspendercliente':
             case 'activarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await suspenderActivarHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            // `comprobantepago` se maneja más por la detección de media que por un comando explícito,
-            // pero si necesitas un comando que inicie ese flujo, necesitarías un plugin específico.
-            // Por ahora, asumimos que `handleIncomingMedia` y `manejarRespuestaPago` son suficientes.
 
             case 'modopago':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -341,7 +333,6 @@ export async function handler(m, conn, store) {
 
             case 'importarpagos': // Nuevo comando para importar datos de pagos
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                // Asegúrate de pasar 'isOwner' al handler del plugin si lo usa internamente para validaciones
                 await importarPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                 break;
 
@@ -350,11 +341,12 @@ export async function handler(m, conn, store) {
             // --- INICIO: Integración del Chatbot (Turbo AI con parámetro 'content' y notificación al owner) ---
             default:
                 // Solo se activa si el mensaje NO es un comando, tiene texto y el usuario NO está esperando una respuesta de pago.
-                // Además, solo responde a usuarios que NO son el propietario del bot.
-                // Y AHORA: solo en chats privados (!m.isGroup).
-                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isOwner && !m.isGroup) { // <--- ¡CAMBIO AQUÍ! Añadido && !m.isGroup
+                // Además, solo responde a usuarios que NO son el propietario del bot y solo en chats privados (!m.isGroup).
+                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isOwner && !m.isGroup) { 
                     try {
-                        const personaPrompt = "Eres un amable y eficiente asistente virtual de pagos para WhatsApp. Tu objetivo es ayudar a los usuarios a entender y agilizar sus procesos de pago, proporcionando explicaciones claras y precisas sobre cómo funcionan los pagos y el uso del bot, especialmente cuando el propietario no está disponible. Responde siempre de forma servicial, profesional, concisa y útil, enfocado en resolver dudas relacionadas con pagos o el funcionamiento general del bot. Si te preguntan sobre métodos de pago específicos, menciona que las opciones varían por país (México, Perú, Chile, Argentina) y que para detalles muy concretos o problemas que no puedas resolver, el usuario debería contactar al propietario. Evita dar información personal, financiera o consejos legales, y céntrate en tu rol de guía para pagos y uso del bot.";
+                        // --- PROMPT DE LA PERSONA DEL CHATBOT ---
+                        const personaPrompt = "Eres Richetti Bot, un amable y eficiente asistente virtual diseñado para atender al público de Richetti. Tu objetivo principal es ofrecer un soporte excepcional y agilizar la atención a los usuarios, proporcionando explicaciones claras y precisas sobre cómo funcionan nuestros servicios de pago y el uso general del bot. Siempre que interactúes, responde de forma servicial, profesional, concisa y útil, enfocándote en resolver dudas relacionadas con los servicios de Richetti, pagos, o el funcionamiento general del bot. Si te preguntan sobre métodos de pago específicos, menciona que las opciones pueden variar y que para detalles muy concretos o problemas complejos que no puedas resolver, el usuario debería contactar directamente con el equipo de Richetti. Evita dar información personal, financiera o consejos legales. Recuerda mantener el tono de voz de Richetti, siendo siempre atento y resolutivo.";
+                        // --- FIN PROMPT DE LA PERSONA DEL CHATBOT ---
 
                         const encodedContent = encodeURIComponent(personaPrompt);
                         const encodedText = encodeURIComponent(m.text);
@@ -362,12 +354,10 @@ export async function handler(m, conn, store) {
                         const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
                         const res = await apiii.json();
 
-                        // La corrección para usar 'res.content' ya está aquí
                         if (res.content) { 
                             const aiResponse = res.content; 
-                            await m.reply(aiResponse); // <-- Esta línea envía el mensaje al usuario!
+                            await m.reply(aiResponse);
 
-                            // Frases clave que indican que la IA desvió la consulta al propietario
                             const deflectionPhrases = [
                                 "contacta al propietario", "necesitas hablar con el propietario",
                                 "no puedo ayudarte con eso", "supera mi capacidad",
@@ -376,7 +366,9 @@ export async function handler(m, conn, store) {
                                 "no puedo resolver eso directamente", "lo siento, no tengo esa información",
                                 "para casos específicos", "requiere la atención del propietario",
                                 "no puedo proporcionar esa información", "fuera de mi alcance",
-                                "no tengo acceso a esa información", "necesitarías contactar directamente"
+                                "no tengo acceso a esa información", "necesitarías contactar directamente",
+                                "contacta con el equipo de richetti", "habla con el equipo de richetti",
+                                "nuestro equipo de soporte"
                             ].map(phrase => phrase.toLowerCase());    
 
                             const aiResponseLower = aiResponse.toLowerCase();
@@ -388,13 +380,12 @@ export async function handler(m, conn, store) {
                                 }
                             }
 
-                            // Si la IA desvió la consulta, notificar al propietario
                             if (aiDeflected) {
                                 const userName = m.pushName || 'Desconocido';
                                 const userNumber = m.sender.split('@')[0];
 
                                 const ownerNotification = `❗ *Atención: Consulta Urgente del Chatbot*\n\n` +
-                                                                `El chatbot ha derivado una consulta que no pudo resolver. El usuario ha sido informado de que debe contactar al propietario.\n\n` +
+                                                                `El chatbot ha derivado una consulta que no pudo resolver. El usuario ha sido informado de que debe contactar al equipo de Richetti.\n\n` +
                                                                 `*👤 Usuario:* ${userName}\n` +
                                                                 `*📞 Número:* +${userNumber}\n` +
                                                                 `*💬 Última pregunta del usuario:* \`${m.text}\`\n` +
