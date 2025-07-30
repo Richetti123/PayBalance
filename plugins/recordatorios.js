@@ -12,9 +12,8 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Lógica original de envío automático (ahora como una función EXPORTADA POR NOMBRE)
-// Esta es la función que debe ser llamada por setInterval en main.js
-export async function sendAutomaticPaymentRemindersLogic(client) { // Solo espera 'client' (que será 'conn')
+// Lógica de envío automático (exportada para ser usada por main.js y también internamente por el handler)
+export async function sendAutomaticPaymentRemindersLogic(client) {
     const today = new Date();
     const currentDayOfMonth = today.getDate();
 
@@ -28,8 +27,7 @@ export async function sendAutomaticPaymentRemindersLogic(client) { // Solo esper
         if (fs.existsSync(paymentsFilePath)) {
             clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
         } else {
-            // Si el archivo no existe, lo creamos vacío para evitar errores
-            fs.writeFileSync(paymentsFilePath, JSON.stringify({}, null, 2), 'utf8');
+            fs.writeFileSync(paymentsFilePath, JSON.stringify({}, null, 2), 'utf8'); // Crea el archivo si no existe
         }
 
         const clientsToSendReminders = [];
@@ -135,32 +133,9 @@ CBU: 4530000800011127480736`;
 }
 
 
-// Este es el handler para el comando del bot (por ejemplo, cuando alguien escribe "!recordatorio")
-// Se importa en handler.js
+// Este es el handler para el comando del bot (por ejemplo, cuando alguien escribe "!recordatorio Marcelo")
 export async function handler(m, { conn, text, command, usedPrefix }) {
-    // La lógica de envío automático por temporizador sigue en sendAutomaticPaymentRemindersLogic.
-    // Este handler se encarga del comando manual y opcionalmente puede disparar el envío automático.
-
-    let targetInput = text.trim(); // Puede ser un número o una cadena vacía
-    let targetNumber = '';
-    
-    // Si se proporciona un número como argumento
-    if (targetInput && !isNaN(targetInput) && targetInput.length > 5) { // Simple check for number-like input
-        targetNumber = targetInput;
-        if (targetNumber.startsWith('+')) {
-            targetNumber = targetNumber.substring(1); // Remover el '+' inicial si está presente
-        }
-        // Formatear el número de WhatsApp
-        if (!targetNumber.includes('@s.whatsapp.net')) {
-            targetNumber = targetNumber.replace(/[^0-9]/g, '') + '@s.whatsapp.net'; // Limpiar y añadir sufijo
-        }
-    } else if (targetInput) {
-        // Asume que si no es un número, es un nombre (aunque tu JSON usa números como claves)
-        // Para simplificar, y dado que las claves son números, si el input no es numérico,
-        // no buscaremos por nombre aquí, o puedes adaptar tu pagos.json para buscar por nombre.
-        // Por ahora, si no es un número, se considerará un comando sin argumento específico de número.
-        return conn.sendMessage(m.chat, { text: `❌ Para enviar un recordatorio manual a un cliente, por favor, escribe el número de teléfono (ej: ${usedPrefix}${command} +5217771234567) o simplemente usa ${usedPrefix}${command} para enviar a todos los que les toca hoy/mañana.` }, { quoted: m });
-    }
+    const clientNameInput = text.trim(); // El input del usuario es el nombre
 
     try {
         const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json');
@@ -174,25 +149,27 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         let clientInfo = null;
         let phoneNumberKey = null;
 
-        if (targetNumber) {
-            // Buscar por el número de WhatsApp formateado (la clave en pagos.json es el número puro)
-            const pureNumber = targetNumber.split('@')[0];
-            if (clientsData[pureNumber]) {
-                clientInfo = clientsData[pureNumber];
-                phoneNumberKey = pureNumber;
+        if (clientNameInput) {
+            // *** CAMBIO CLAVE: Búsqueda por nombre (insensible a mayúsculas/minúsculas) ***
+            for (const key in clientsData) {
+                if (clientsData[key].nombre && clientsData[key].nombre.toLowerCase() === clientNameInput.toLowerCase()) {
+                    clientInfo = clientsData[key];
+                    phoneNumberKey = key; // El número puro, que es la clave en pagos.json
+                    break;
+                }
             }
             
             if (!clientInfo) {
-                return conn.sendMessage(m.chat, { text: `❌ Cliente con número "${targetInput}" no encontrado en la base de datos de pagos.` }, { quoted: m });
+                return conn.sendMessage(m.chat, { text: `❌ Cliente con nombre "${clientNameInput}" no encontrado en la base de datos de pagos.` }, { quoted: m });
             }
         } else {
-            // Si no se proporciona número, se envía recordatorio a *todos* los clientes que les toca hoy/mañana (como en el automático)
+            // Si no se proporciona nombre, se ejecuta la lógica automática para todos los clientes que les toca hoy/mañana
             await conn.sendMessage(m.chat, { text: '🔄 Iniciando envío de recordatorios automáticos a todos los clientes que les toca pago hoy o mañana...' }, { quoted: m });
-            await sendAutomaticPaymentRemindersLogic(conn); // Llamada a la función de lógica automática
+            await sendAutomaticPaymentRemindersLogic(conn); // Llama a la función de lógica automática
             return conn.sendMessage(m.chat, { text: '✅ Proceso de recordatorios automáticos finalizado.' }, { quoted: m });
         }
 
-        // Si se especificó un cliente y se encontró, enviar recordatorio solo a ese cliente
+        // Si se especificó un cliente por nombre y se encontró, enviar recordatorio solo a ese cliente
         const { diaPago, monto, bandera, nombre } = clientInfo;
         const numeroSinPrefijo = phoneNumberKey; // Número puro sin @s.whatsapp.net
 
