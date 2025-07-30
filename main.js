@@ -1,99 +1,130 @@
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1';
-import './config.js';
-import './plugins/_content.js'; // Asumo que esto es necesario para tu bot
-import { createRequire } from 'module';
-import path, { join } from 'path';
-import { fileURLToPath } from 'url'; // Removí pathToFileURL, platform ya no es estrictamente necesaria aquí
-import * as ws from 'ws'; // Mantengo por si es una dependencia indirecta
-import fs, { watchFile, unwatchFile, existsSync, readFileSync, readdirSync, unlinkSync, statSync, writeFileSync } from 'fs'; // Importaciones síncronas
-import yargs from 'yargs';
-import { spawn } from 'child_process'; // Mantengo por si se usa en otros lados
-import lodash from 'lodash'; // Mantengo por si se usa en otros lados
-import chalk from 'chalk';
-import syntaxerror from 'syntax-error'; // Mantengo por si se usa en otros lados
-import { format } from 'util';
-import pino from 'pino'; // Ya importabas Pino como P, pino es el nombre del paquete
-import { Boom } from '@hapi/boom';
-// import { makeWASocket, protoType, serialize } from './lib/simple.js'; // Si usas lib/simple.js, descomenta
-import { Low, JSONFile } from 'lowdb'; // Mantengo por si se usa en otros lados
-import PQueue from 'p-queue'; // Mantengo por si se usa en otros lados
-import Datastore from '@seald-io/nedb';
-// import store from './lib/store.js'; // Si usas este store en lugar de makeInMemoryStore
-import readline from 'readline';
+import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
-// import { gataJadiBot } from './plugins/jadibot-serbot.js'; // Mantengo por si es una funcionalidad
-// import pkg from 'google-libphonenumber'; // Mantengo si usas isValidPhoneNumber de aquí
-// const { PhoneNumberUtil } = pkg;
-// const phoneUtil = PhoneNumberUtil.getInstance(); // Mantengo si usas isValidPhoneNumber de aquí
+import P from 'pino';
+import chalk from 'chalk'; // Importamos chalk para los colores en la consola
+import yargs from 'yargs'; // Importamos yargs para analizar argumentos de línea de comandos
+import { createInterface } from 'readline'; // Importamos readline para interactuar con la consola
 
-// Importaciones de Baileys
 import {
     makeWASocket,
     useMultiFileAuthState,
-    makeInMemoryStore, // Asegúrate de usar este si no usas './lib/store.js'
+    makeInMemoryStore,
     DisconnectReason,
     delay
 } from '@whiskeysockets/baileys';
 
-// Importación de funciones de limpieza y recordatorios
+import {
+    readFileSync,
+    existsSync,
+    writeFileSync,
+    readdirSync, // Sincrónico para clearTmp
+    unlinkSync // Sincrónico para clearTmp
+} from 'fs';
+import {
+    join
+} from 'path';
+import {
+    fileURLToPath
+} from 'url';
+import util from 'util';
+import Datastore from '@seald-io/nedb';
+import {
+    sendAutomaticPaymentRemindersLogic
+} from './plugins/recordatorios.js';
+
+// Importaciones de 'fs/promises' para operaciones asíncronas
 import {
     readdir,
     unlink,
     stat
 } from 'fs/promises';
-import {
-    sendAutomaticPaymentRemindersLogic
-} from './plugins/recordatorios.js'; // Asegúrate que esta ruta es correcta
 
-// --- Tu lógica de lenguajeGB y otros utilitarios (ajusta según tu estructura real) ---
-// Simulación de lenguajeGB si no está definida globalmente
-let lenguajeGB = {
-    smsClearTmp: () => 'Archivos temporales limpiados.',
-    smspurgeSession: () => 'Sesión principal purgada.',
-    smspurgeOldFiles: () => 'Archivos antiguos purgados.',
-    smsCargando: () => 'Cargando bot...',
-    smsMainBot: () => 'Detectado cambio en main.js. Recargando...'
-};
-// Asumo que tienes un archivo config.js que define global.db, etc.
-// Y que tienes una función _quickTest() definida en algún lugar o en un config.js
-// Si no están definidos, necesitarás definirlos o eliminarlos.
-let _quickTest = async () => {}; // Función dummy para evitar errores si no existe
-let conn = null; // Declaramos conn globalmente para los setIntervals
-
-// --- Carga de 'config.js' y otras configuraciones globales (ej: global.db) ---
-// Tu archivo original 'main (2).js' carga 'config.js' al inicio.
-// Este 'config.js' suele inicializar global.db y otras variables globales.
-// Asegúrate de que esas variables estén correctamente inicializadas si las estás usando.
+// Importaciones adicionales de tu main (2).js para la lógica de conexión
+import pkg from 'google-libphonenumber';
+const { PhoneNumberUtil } = pkg;
+const phoneUtil = PhoneNumberUtil.getInstance();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
 
-// --- Configuración de la Base de Datos Nedb ---
-// Esta parte de global.db debe ser inicializada por tu config.js o aquí.
-// La dejo aquí como referencia de tu estructura original.
-if (!global.db) {
-    global.db = {
-        data: {
-            users: {},
-            chats: {},
-            settings: {},
-            ...(existsSync('./src/database.json') && JSON.parse(readFileSync('./src/database.json')))
-        }
-    };
-    const collections = ['users', 'chats', 'settings'];
-    collections.forEach(collection => {
-        global.db.data[collection] = new Datastore({
-            filename: `./src/${collection}.db`,
-            autoload: true
-        });
-        global.db.data[collection].loadDatabase();
-    });
-}
+// --- DEFINICIONES PROVISIONALES PARA global.mid y global.lenguajeGB ---
+// Si ya tienes estas definiciones en tu config.js o en otro archivo,
+// POR FAVOR, ELIMINA ESTAS LÍNEAS para evitar conflictos.
+global.mid = {
+    methodCode1: "╔═════ᨒ═╍═╍═✦═╍═╍═ᨒ═════╗",
+    methodCode2: "║  [ *SELECCIONE EL TIPO DE CONEXIÓN* ]  ║",
+    methodCode3: "OPCIÓN",
+    methodCode4: "CONECTAR POR CÓDIGO QR",
+    methodCode5: "CONECTAR POR CÓDIGO DE 8 DÍGITOS",
+    methodCode6: "╰═▶️ SI NO SABES CÓMO ELEGIR",
+    methodCode7: "         ELIJE LA OPCIÓN 1",
+    methodCode8: "PARA MÁS DETALLES, UTILICE LA LÍNEA DE COMANDOS",
+    methodCode9: "node . --qr",
+    methodCode10: "node . --code <numero>",
+    methodCode11: (chalk) => `[ ${chalk.bold.redBright('❌ ERROR')} ] POR FAVOR, SELECCIONE UN NÚMERO ENTRE EL 1 O EL 2`,
+    methodCode12: 'Conexión por código QR',
+    methodCode13: 'Conexión por código de 8 dígitos',
+    methodCode14: 'Inicia el bot normalmente',
+    phNumber2: (chalk) => `[ ${chalk.bold.greenBright('⚠️ INGRESAR NÚMERO')} ] POR FAVOR, INGRESE SU NÚMERO DE WHATSAPP CON EL CÓDIGO DE PAÍS. EJEMPLO: ${chalk.yellow('52155XXXXXXXX')}\n---> `,
+    pairingCode: '[ ⚠️ CÓDIGO DE EMPAREJAMIENTO ]',
+    mCodigoQR: 'ESCANEA EL CÓDIGO QR', // Añadido de tu main (2).js
+    mConexion: '¡CONEXIÓN ESTABLECIDA CORRECTAMENTE!' // Añadido de tu main (2).js
+};
 
+global.lenguajeGB = {
+    smsClearTmp: () => 'Archivos temporales limpiados.',
+    smspurgeSession: () => 'Sesión principal purgada.',
+    smspurgeOldFiles: () => 'Archivos antiguos purgados.',
+    smsCargando: () => 'Cargando bot...',
+    smsMainBot: () => 'Detectado cambio en main.js. Recargando...',
+    smsConexionOFF: () => `[ ⚠️ ] SESIÓN CERRADA. ¡¡VUELVA A ESCANEAR EL CÓDIGO QR O INGRESE UN CÓDIGO DE 8 DÍGITOS!!`,
+    smsConexioncerrar: () => `[ ⚠️ ] LA CONEXIÓN SE HA CERRADO, SE INTENTARÁ RECONECTAR...`,
+    smsConexionperdida: () => `[ ⚠️ ] LA CONEXIÓN SE HA PERDIDO CON EL SERVIDOR, SE INTENTARÁ RECONECTAR...`,
+    smsConexionreem: () => `[ ⚠️ ] CONEXIÓN REEMPLAZADA, SE HA ABIERTO OTRA NUEVA SESIÓN, CIERRE LA SESIÓN ACTUAL PRIMERO.`,
+    smsConexionreinicio: () => `[ ⚠️ ] REQUERIDO REINICIO, RECONECTANDO...`,
+    smsConexiontiem: () => `[ ⚠️ ] TIEMPO DE CONEXIÓN AGOTADO, RECONECTANDO...`,
+    smsConexiondescon: (reason, connection) => `[ ❌ ] MOTIVO DE DESCONEXIÓN DESCONOCIDO: ${reason || ''} ${connection || ''}`,
+    smsWelcome: () => 'Bienvenido al grupo.',
+    smsBye: () => 'Adiós del grupo.',
+    smsSpromote: () => 'Fue promovido a administrador.',
+    sdemote: () => 'Fue degradado de administrador.',
+    smsSdesc: () => 'Se ha cambiado la descripción del grupo.',
+    smsSsubject: () => 'Se ha cambiado el nombre del grupo.',
+    smsSicon: () => 'Se ha cambiado la foto de perfil del grupo.',
+    smsSrevoke: () => 'Se ha cambiado el enlace de invitación del grupo.',
+    smspurgeOldFiles1: () => 'Archivo antiguo eliminado:',
+    smspurgeOldFiles2: () => 'en sub-bot',
+    smspurgeOldFiles3: () => 'Error al eliminar',
+    smspurgeOldFiles4: () => 'Error al eliminar archivo residual',
+    smspurgeSessionSB1: () => 'No se encontraron pre-keys antiguas en sub-bots para eliminar.',
+    smspurgeSessionSB2: () => 'Pre-keys antiguas eliminadas de sub-bots.',
+    smspurgeSessionSB3: () => 'Error al purgar sesión de sub-bots:'
+};
+// --- FIN DE DEFINICIONES PROVISIONALES ---
+
+
+// --- Configuración de la Base de Datos Nedb ---
+global.db = {
+    data: {
+        users: {},
+        chats: {},
+        settings: {},
+        ...(existsSync('./src/database.json') && JSON.parse(readFileSync('./src/database.json')))
+    }
+};
+
+const collections = ['users', 'chats', 'settings'];
+collections.forEach(collection => {
+    global.db.data[collection] = new Datastore({
+        filename: `./src/${collection}.db`,
+        autoload: true
+    });
+    global.db.data[collection].loadDatabase();
+});
 
 // --- Almacenamiento en Memoria para Baileys ---
 const store = makeInMemoryStore({
-    logger: pino().child({ // Usar pino() aquí
+    logger: P().child({
         level: 'silent',
         stream: 'store'
     })
@@ -119,11 +150,12 @@ function clearTmp() {
             const filePath = join(tmpDir, file);
             try {
                 unlinkSync(filePath);
+                // console.log(chalk.green(`[🗑️] Archivo temporal eliminado: ${file}`));
             } catch (err) {
                 // console.error(chalk.red(`[⚠] Error al eliminar temporal ${file}: ${err.message}`));
             }
         });
-        console.log(chalk.bold.cyanBright(lenguajeGB.smsClearTmp()));
+        console.log(chalk.bold.cyanBright(`[🔵] Archivos temporales eliminados de ${tmpDir}`));
     } catch (err) {
         console.error(chalk.red(`[⚠] Error general al limpiar 'tmp': ${err.message}`));
     }
@@ -147,27 +179,35 @@ async function cleanMainSession() {
 
         for (const file of files) {
             const filePath = join(sessionDir, file);
+            // Evitar eliminar creds.json que es esencial para la sesión
             if (file === 'creds.json') {
+                // console.log(chalk.yellow(`[ℹ️] Manteniendo archivo esencial: ${file}`));
                 continue;
             }
 
             try {
                 const fileStats = await stat(filePath);
+
+                // Si es un archivo pre-key y es antiguo (más de 24 horas)
                 if (file.startsWith('pre-key-') && fileStats.mtimeMs < twentyFourHoursAgo) {
                     await unlink(filePath);
                     console.log(chalk.green(`[🗑️] Pre-key antigua eliminada: ${file}`));
                     cleanedFilesCount++;
                 } else if (!file.startsWith('pre-key-')) {
+                    // Si no es un archivo pre-key, se considera un archivo residual y se elimina.
+                    // Esto cubre otros archivos que Baileys pueda generar que no sean creds.json o pre-key.
                     await unlink(filePath);
                     console.log(chalk.green(`[🗑️] Archivo residual de sesión eliminado: ${file}`));
                     cleanedFilesCount++;
+                } else {
+                    // console.log(chalk.yellow(`[ℹ️] Manteniendo pre-key activa: ${file}`));
                 }
             } catch (err) {
                 console.error(chalk.red(`[⚠] Error al procesar o eliminar ${file} en ${sessionDir}: ${err.message}`));
             }
         }
         if (cleanedFilesCount > 0) {
-            console.log(chalk.cyanBright(lenguajeGB.smspurgeSession()));
+            console.log(chalk.cyanBright(`[🔵] Limpieza de sesión completada. Archivos eliminados: ${cleanedFilesCount}`));
         } else {
             console.log(chalk.bold.green(`[🔵] No se encontraron archivos de sesión no esenciales o antiguos para eliminar.`));
         }
@@ -177,70 +217,90 @@ async function cleanMainSession() {
     }
 }
 
-// Función para purgar archivos antiguos (si 'lenguajeGB.smspurgeOldFiles()' es de tu bot)
-async function purgeOldFiles() {
-    // Implementa tu lógica de purga de archivos antiguos aquí
-    // Por ejemplo:
-    // const oldFilesDir = './path/to/old/files';
-    // if (existsSync(oldFilesDir)) {
-    //     const files = await readdir(oldFilesDir);
-    //     for (const file of files) {
-    //         // Lógica para decidir qué archivos eliminar
-    //     }
-    // }
-    console.log(chalk.bold.cyanBright(lenguajeGB.smspurgeOldFiles()));
+// Función para hacer preguntas en la consola (mejorada para coincidir con el readline de tu main (2).js)
+let rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+})
+
+const question = (texto) => {
+    rl.clearLine(rl.input, 0)
+    return new Promise((resolver) => {
+        rl.question(texto, (respuesta) => {
+            rl.clearLine(rl.input, 0)
+            resolver(respuesta.trim())
+        })
+    })
 }
 
-
-// Función para hacer preguntas en la consola
-function askQuestion(query) {
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-    });
-    return new Promise(resolve => rl.question(query, ans => {
-        rl.close();
-        resolve(ans);
-    }))
+// Función de validación de número de teléfono (copiada de tu main (2).js)
+async function isValidPhoneNumber(number) {
+    try {
+        number = number.replace(/\s+/g, '')
+        // Si el número empieza con '+521' o '+52 1', quitar el '1'
+        if (number.startsWith('+521')) {
+            number = number.replace('+521', '+52'); // Cambiar +521 a +52
+        } else if (number.startsWith('+52') && number[4] === '1') {
+            number = number.replace('+52 1', '+52'); // Cambiar +52 1 a +52
+        }
+        const parsedNumber = phoneUtil.parseAndKeepRawInput(number)
+        return phoneUtil.isValidNumber(parsedNumber)
+    } catch (error) {
+        return false
+    }
 }
+
 
 // --- Función Principal de Conexión ---
 async function startBot() {
+    // 1. Analizar los argumentos de línea de comandos para ver si se forzó un modo
     const argv = yargs(process.argv.slice(2)).parse();
-    let usePairingCode = false;
-    let phoneNumber = null;
+    
+    // Variables de control de tu main (2).js
+    let phoneNumber = null; // Puedes definir global.botNumberCode si quieres un número por defecto
+    const methodCodeQR = process.argv.includes("qr"); // `node . --qr`
+    const methodCode = !!phoneNumber || process.argv.includes("code"); // `node . --code` o si phoneNumber ya está definido
+    const MethodMobile = process.argv.includes("mobile"); // `node . --mobile`
 
-    // Verificar si ya hay una sesión guardada. Si la hay, simplemente reconecta.
-    if (existsSync('./sessions/creds.json')) {
-        console.log(chalk.green('[✅] Sesión existente encontrada. Conectando automáticamente...'));
-        usePairingCode = false; // Aseguramos que no intente pairing code si ya hay credenciales
-    } else {
-        // Si no hay sesión, preguntamos al usuario
-        console.log(chalk.blue('\n¿Cómo quieres conectar tu bot?'));
-        console.log(chalk.cyan('1. Conectar por Código QR (recomendado si es la primera vez o si el código de 8 dígitos falla)'));
-        console.log(chalk.cyan('2. Conectar por Código de 8 dígitos (útil si escaneo QR es difícil)'));
-        const choice = await askQuestion(chalk.yellow('Ingresa 1 o 2: '));
+    let opcion; // Variable para almacenar la elección del usuario (1 o 2)
 
-        if (choice === '2') {
-            usePairingCode = true;
-            // Intenta obtener el número si se pasó como argumento posicional (ej. node . 521XXXXXXXXXX)
-            phoneNumber = argv._[0]; 
+    // Si se usa 'npm run qr' o 'node . --qr', se fuerza la opción 1 (QR)
+    if (methodCodeQR) {
+        opcion = '1';
+    }
 
-            if (!phoneNumber) {
-                console.log(chalk.yellow('\nPara el código de 8 dígitos, necesito tu número de teléfono.'));
-                phoneNumber = await askQuestion(chalk.cyan('Ingresa tu número de WhatsApp con código de país (ej: 521XXXXXXXXXX): '));
-                phoneNumber = phoneNumber.replace(/\D/g, ''); // Limpiamos el número
+    // --- Lógica Interactiva para elegir tipo de conexión (copiada de tu main (2).js) ---
+    // Este es el bloque que pregunta al usuario si quiere QR o código de 8 dígitos.
+    if (!methodCodeQR && !methodCode && !existsSync('./sessions/creds.json')) {
+        do {
+            let lineM = '⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ 》'
+            opcion = await question(`╭${lineM}  
+┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}
+┊ ${chalk.blueBright('┊')} ${chalk.blue.bgBlue.bold.cyan(mid.methodCode1)}
+┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}   
+┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}     
+┊ ${chalk.blueBright('┊')} ${chalk.green.bgMagenta.bold.yellow(mid.methodCode2)}
+┊ ${chalk.blueBright('┊')} ${chalk.bold.redBright(`⇢  ${mid.methodCode3} 1:`)} ${chalk.greenBright(mid.methodCode4)}
+┊ ${chalk.blueBright('┊')} ${chalk.bold.redBright(`⇢  ${mid.methodCode3} 2:`)} ${chalk.greenBright(mid.methodCode5)}
+┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}
+┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}     
+┊ ${chalk.blueBright('┊')} ${chalk.italic.magenta(mid.methodCode6)}
+┊ ${chalk.blueBright('┊')} ${chalk.italic.magenta(mid.methodCode7)}
+┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')} 
+┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}    
+┊ ${chalk.blueBright('┊')} ${chalk.red.bgRed.bold.green(mid.methodCode8)}
+┊ ${chalk.blueBright('┊')} ${chalk.italic.cyan(mid.methodCode9)}
+┊ ${chalk.blueBright('┊')} ${chalk.italic.cyan(mid.methodCode10)}
+┊ ${chalk.blueBright('┊')} ${chalk.bold.yellow(`npm run qr ${chalk.italic.magenta(`(${mid.methodCode12})`)}`)}
+┊ ${chalk.blueBright('┊')} ${chalk.bold.yellow(`npm run code ${chalk.italic.magenta(`(${mid.methodCode13})`)}`)}
+┊ ${chalk.blueBright('┊')} ${chalk.bold.yellow(`npm start ${chalk.italic.magenta(`(${mid.methodCode14})`)}`)}
+┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')} 
+╰${lineM}\n${chalk.bold.magentaBright('---> ')}`);
+            if (!/^[1-2]$/.test(opcion)) {
+                console.log(chalk.bold.redBright(mid.methodCode11(chalk)));
             }
-
-            if (!phoneNumber || !/^\d+$/.test(phoneNumber)) {
-                console.log(chalk.red('Número de teléfono inválido o no proporcionado. Saliendo...'));
-                process.exit(1);
-            }
-        } else if (choice !== '1') {
-            console.log(chalk.red('Opción inválida. Saliendo...'));
-            process.exit(1);
-        }
-        // Si choice es '1', usePairingCode sigue siendo false, lo que activará el QR.
+        } while (opcion !== '1' && opcion !== '2' || existsSync('./sessions/creds.json'));
     }
 
     const {
@@ -248,30 +308,74 @@ async function startBot() {
         saveCreds
     } = await useMultiFileAuthState('sessions');
 
-    conn = makeWASocket({ // Asigna a la variable global 'conn'
-        logger: pino({
+    const sock = makeWASocket({
+        logger: P({
             level: 'silent'
         }),
-        printQRInTerminal: !usePairingCode, // Solo imprimir QR si no se usa el código de emparejamiento
-        browser: ['LogisticBot', 'Desktop', '3.0'],
+        // --- CONFIGURACIÓN CLAVE PARA QR Y CÓDIGO DE 8 DÍGITOS EN BAILEYS ---
+        // printQRInTerminal: Imprime el QR en la terminal. Se activa si se eligió opción 1 o se usó --qr
+        printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
+        mobile: MethodMobile, // Habilita modo móvil si se usó --mobile
+        // pairingCode: Pasa el número para generar el código de emparejamiento.
+        // Se activa si se eligió opción 2 o se usó --code.
+        pairingCode: opcion == '2' || methodCode ? phoneNumber : undefined,
+        // --- FIN CONFIGURACIÓN CLAVE ---
+        browser: opcion == '1' ? ['LogisticBot', 'Desktop', '3.0'] : methodCodeQR ? ['LogisticBot', 'Desktop', '3.0'] : ["Ubuntu", "Chrome", "20.0.04"], // Ajusta el navegador según la opción
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false,
-        pairingCode: usePairingCode && phoneNumber ? phoneNumber : undefined,
+        // Añadido de tu main (2).js para Baileys
+        cachedGroupMetadata: (jid) => global.conn.chats[jid] ?? {}, // Asume que global.conn.chats existe y está poblado
+        version: [2, 2413, 51], // Puedes ajustar la versión si necesitas una específica
+        keepAliveIntervalMs: 55000,
+        maxIdleTimeMs: 60000,
     });
 
-    // Esta parte puede ser problemática si se ejecuta antes de que Baileys tenga tiempo de generar el código
-    // Por eso, la dejamos aquí y el mensaje de arriba ya lo anticipa.
-    if (usePairingCode && !existsSync('./sessions/creds.json')) {
-        console.log(chalk.blue(`\nPor favor, espera. Si tu número (${phoneNumber}) es válido, se generará un código de 8 dígitos.`));
-        console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
+    // Asignar sock a global.conn para que las funciones de limpieza lo puedan usar
+    global.conn = sock;
+    
+    // Asignar store a global.conn para compatibilidad con otros módulos que lo usen
+    global.conn.store = store; 
+
+
+    // --- LÓGICA PARA SOLICITAR Y MOSTRAR EL CÓDIGO DE 8 DÍGITOS (tal como en tu main (2).js) ---
+    // Este bloque solo se ejecuta si NO hay credenciales guardadas y se eligió la opción de código.
+    if (!existsSync('./sessions/creds.json')) {
+        if (opcion === '2' || methodCode) {
+            opcion = '2'; // Asegura que la 'opcion' es 2
+            if (!global.conn.authState.creds.registered) {
+                let addNumber;
+                // Si el número ya fue pasado como argumento de línea de comandos (ej: node . --code 521xxxxxxxx)
+                if (!!phoneNumber) {
+                    addNumber = phoneNumber.replace(/[^0-9]/g, ''); // Limpia el número
+                } else { // Si no se pasó el número por línea de comandos, lo solicita interactivamente
+                    do {
+                        phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
+                        phoneNumber = phoneNumber.replace(/\D/g, '');
+                        if (!phoneNumber.startsWith('+')) {
+                            phoneNumber = `+${phoneNumber}`;
+                        }
+                    } while (!await isValidPhoneNumber(phoneNumber)); // Valida el número ingresado
+                    // No cerrar rl aquí, ya que se usa en connectionUpdate para el QR
+                    // rl.close(); 
+                }
+
+                // Pequeño retraso y luego solicita el código de emparejamiento y lo muestra
+                setTimeout(async () => {
+                    let codeBot = await global.conn.requestPairingCode(addNumber);
+                    codeBot = codeBot?.match(/.{1,4}/g)?.join("-") || codeBot;
+                    console.log(chalk.bold.white(chalk.bgMagenta(mid.pairingCode)), chalk.bold.white(chalk.white(codeBot)));
+                }, 2000); // Retraso de 2 segundos
+            }
+        }
     }
 
-    store.bind(conn.ev); // Usa conn en lugar de sock
+
+    store.bind(sock.ev);
 
     // --- Manejo de Eventos de Conexión ---
-    conn.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const {
             connection,
             lastDisconnect,
@@ -283,10 +387,11 @@ async function startBot() {
             if (reason === DisconnectReason.badSession) {
                 console.log(chalk.red(`[❌] Archivo de sesión incorrecto, por favor elimina la carpeta 'sessions' y vuelve a escanear.`));
                 process.exit();
-            } else if (reason === DisconnectReason.connectionClosed || reason === DisconnectReason.connectionLost) {
-                console.log(chalk.yellow(`[⚠️] Conexión cerrada/perdida, reconectando....`));
-                // Dale un pequeño retraso antes de reiniciar para evitar bucles rápidos
-                await delay(1000); 
+            } else if (reason === DisconnectReason.connectionClosed) {
+                console.log(chalk.yellow(`[⚠️] Conexión cerrada, reconectando....`));
+                startBot();
+            } else if (reason === DisconnectReason.connectionLost) {
+                console.log(chalk.yellow(`[⚠️] Conexión perdida del servidor, reconectando...`));
                 startBot();
             } else if (reason === DisconnectReason.connectionReplaced) {
                 console.log(chalk.red(`[❌] Conexión reemplazada, otra nueva sesión abierta. Por favor, cierra la sesión actual primero.`));
@@ -296,38 +401,28 @@ async function startBot() {
                 process.exit();
             } else {
                 console.log(chalk.red(`[❌] Razón de desconexión desconocida: ${reason}|${lastDisconnect.error}`));
-                // Dale un pequeño retraso antes de reiniciar para evitar bucles rápidos
-                await delay(1000);
                 startBot();
             }
         } else if (connection === 'open') {
             console.log(chalk.green('[✅] Conexión abierta con WhatsApp.'));
-
-            // --- Mueve la lógica de _quickTest y watchFile aquí ---
-            // Asegura que estas funciones se ejecuten solo una vez después de la conexión.
-            if (!global.botInitialized) { // Usa una bandera para evitar que se ejecute en reconexiones
-                global.botInitialized = true;
-                _quickTest().then(() => conn.logger.info(chalk.bold(lenguajeGB['smsCargando']().trim()))).catch(console.error);
-
-                let file = fileURLToPath(import.meta.url);
-                watchFile(file, () => {
-                    unwatchFile(file);
-                    console.log(chalk.bold.greenBright(lenguajeGB['smsMainBot']().trim()));
-                    // Importar de nuevo el archivo principal para aplicar cambios
-                    import(`${file}?update=${Date.now()}`);
-                });
-            }
             // Envía recordatorios al iniciar y luego cada 24 horas
-            await sendAutomaticPaymentRemindersLogic(conn);
-            setInterval(() => sendAutomaticPaymentRemindersLogic(conn), 24 * 60 * 60 * 1000); // Cada 24 horas
+            await sendAutomaticPaymentRemindersLogic(sock);
+            setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000); // Cada 24 horas
+        }
+        
+        // Manejo de QR desde tu main (2).js
+        if (qr != 0 && qr != undefined || methodCodeQR) {
+            if (opcion == '1' || methodCodeQR) {
+                console.log(chalk.bold.yellow(mid.mCodigoQR));
+            }
         }
     });
 
     // --- Guardar Credenciales ---
-    conn.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', saveCreds);
 
     // --- Manejo de Mensajes Entrantes ---
-    conn.ev.on('messages.upsert', async (chatUpdate) => {
+    sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const m = chatUpdate.messages[0];
             if (!m.message) return;
@@ -337,19 +432,19 @@ async function startBot() {
             m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
             m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
 
-            global.self = conn.user.id.split(':')[0] + '@s.whatsapp.net';
+            global.self = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
             const {
                 handler
-            } = await import('./handler.js'); // Asegúrate que esta ruta es correcta
-            await handler(m, conn, store);
+            } = await import('./handler.js');
+            await handler(m, sock, store);
 
         } catch (e) {
             console.error(chalk.red(`[❌] Error en messages.upsert: ${e.message || e}`));
         }
     });
 
-    return conn;
+    return sock;
 }
 
 // --- Inicio del bot y programación de tareas de limpieza ---
@@ -357,18 +452,20 @@ startBot();
 
 // Limpiar la carpeta 'tmp' cada 3 minutos
 setInterval(async () => {
-    if (conn && conn.user) {
+    // Solo limpiar si el bot está conectado
+    if (global.conn && global.conn.user) {
         clearTmp();
+    } else {
+        // console.log(chalk.gray('[ℹ️] Bot desconectado, omitiendo limpieza de tmp.'));
     }
 }, 1000 * 60 * 3); // Cada 3 minutos
 
-// Limpiar la carpeta de sesiones y archivos antiguos cada 10 minutos
+// Limpiar la carpeta de sesiones cada 10 minutos
 setInterval(async () => {
-    if (conn && conn.user) {
+    // Solo limpiar si el bot está conectado
+    if (global.conn && global.conn.user) {
         await cleanMainSession();
-        // Asumo que purgeSessionSB() es otra función de limpieza similar
-        // if (typeof purgeSessionSB === 'function') await purgeSessionSB(); // Descomenta si existe
-        // if (typeof purgeSession === 'function') await purgeSession(); // Descomenta si existe
-        await purgeOldFiles(); // Llamada a la función purgeOldFiles
+    } else {
+        // console.log(chalk.gray('[ℹ️] Bot desconectado, omitiendo limpieza de sesión.'));
     }
 }, 1000 * 60 * 10); // Cada 10 minutos
