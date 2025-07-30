@@ -53,19 +53,19 @@ export async function sendAutomaticPaymentRemindersLogic(client) {
 
             if (shouldSend) {
                 switch (bandera) {
-                    case '🇲🇽': 
+                    case '🇲🇽':
                         paymentDetails = `\n\nPara pagar en México, usa:
 CLABE: 706969168872764411
 Nombre: Gaston Juarez
 Banco: Arcus Fi`;
                         break;
-                    case '🇵🇪': 
+                    case '🇵🇪':
                         paymentDetails = `\n\nPara pagar en Perú, usa:
 Nombre: Marcelo Gonzales R.
 Yape: 967699188
 Plin: 955095498`;
                         break;
-                    case '🇨🇱': 
+                    case '🇨🇱':
                         paymentDetails = `\n\nPara pagar en Chile, usa:
 Nombre: BARINIA VALESKA ZENTENO MERINO
 RUT: 17053067-5
@@ -74,7 +74,7 @@ Tipo de cuenta: Cuenta Vista
 Numero de cuenta: 111117053067
 Correo: estraxer2002@gmail.com`;
                         break;
-                    case '🇦🇷': 
+                    case '🇦🇷':
                         paymentDetails = `\n\nPara pagar en Argentina, usa:
 Nombre: Gaston Juarez
 CBU: 4530000800011127480736`;
@@ -104,7 +104,9 @@ CBU: 4530000800011127480736`;
             const { formattedNumber, buttonMessage, nombre, numero } = clientsToSendReminders[i];
 
             try {
+                console.log(`[DEBUG - Auto] Intentando enviar recordatorio a: ${formattedNumber}`);
                 await client.sendMessage(formattedNumber, buttonMessage);
+                console.log(`[DEBUG - Auto] Recordatorio enviado exitosamente a: ${formattedNumber}`);
 
                 // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse ---
                 // Obtener el documento del usuario de Nedb
@@ -152,11 +154,15 @@ CBU: 4530000800011127480736`;
 
                 const confirmationText = `✅ Recordatorio automático enviado a *${nombre}* (${numero}).`;
                 await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: confirmationText });
+                console.log(`[DEBUG - Auto] Confirmación enviada a admin para ${formattedNumber}.`);
 
             } catch (sendError) {
+                console.error(`[ERROR - Auto] Falló el envío de recordatorio a ${formattedNumber}:`, sendError);
                 try {
                     await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `❌ Falló el recordatorio automático a *${nombre}* (${numero}). Error: ${sendError.message || sendError}` });
-                } catch {}
+                } catch (adminSendError) {
+                    console.error(`[ERROR - Auto] Falló el envío de error al admin para ${formattedNumber}:`, adminSendError);
+                }
             }
 
             if (i < clientsToSendReminders.length - 1) {
@@ -165,7 +171,7 @@ CBU: 4530000800011127480736`;
         }
 
     } catch (error) {
-        console.error('Error en sendAutomaticPaymentRemindersLogic:', error);
+        console.error('Error general en sendAutomaticPaymentRemindersLogic:', error);
     }
 }
 
@@ -180,6 +186,7 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         if (fs.existsSync(paymentsFilePath)) {
             clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
         } else {
+            console.log('[DEBUG - Manual] pagos.json no encontrado.');
             return conn.sendMessage(m.chat, { text: '❌ El archivo `pagos.json` no se encontró.' }, { quoted: m });
         }
 
@@ -187,6 +194,7 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         let phoneNumberKey = null;
 
         if (clientNameInput) {
+            console.log(`[DEBUG - Manual] Buscando cliente: ${clientNameInput}`);
             for (const key in clientsData) {
                 if (clientsData[key].nombre && clientsData[key].nombre.toLowerCase() === clientNameInput.toLowerCase()) {
                     clientInfo = clientsData[key];
@@ -194,12 +202,14 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
                     break;
                 }
             }
-            
+
             if (!clientInfo) {
+                console.log(`[DEBUG - Manual] Cliente "${clientNameInput}" no encontrado.`);
                 return conn.sendMessage(m.chat, { text: `❌ Cliente con nombre "${clientNameInput}" no encontrado en la base de datos de pagos.` }, { quoted: m });
             }
         } else {
             // Si no se proporciona nombre, se ejecuta la lógica automática para todos los clientes que les toca hoy/mañana
+            console.log('[DEBUG - Manual] No se proporcionó nombre, ejecutando recordatorios automáticos.');
             await conn.sendMessage(m.chat, { text: '🔄 Iniciando envío de recordatorios automáticos a todos los clientes que les toca pago hoy o mañana...' }, { quoted: m });
             await sendAutomaticPaymentRemindersLogic(conn); // Llama a la función de lógica automática
             return conn.sendMessage(m.chat, { text: '✅ Proceso de recordatorios automáticos finalizado.' }, { quoted: m });
@@ -207,26 +217,29 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
 
         // Si se especificó un cliente por nombre y se encontró, enviar recordatorio solo a ese cliente
         const { diaPago, monto, bandera, nombre } = clientInfo;
-        const numeroSinPrefijo = phoneNumberKey; // Número puro sin @s.whatsapp.net
+        const numeroSinPrefijo = phoneNumberKey.replace(/\+/g, ''); // <--- CORRECCIÓN APLICADA AQUÍ
         const formattedTargetNumber = numeroSinPrefijo + '@s.whatsapp.net';
+
+        console.log(`[DEBUG - Manual] Cliente encontrado: ${nombre} (${numeroSinPrefijo}). JID de destino: ${formattedTargetNumber}`);
+
 
         let mainReminderMessage = `¡Hola ${nombre}! 👋 Este es un recordatorio de tu pago de ${monto}.`;
         let paymentDetails = '';
 
         switch (bandera) {
-            case '🇲🇽': 
+            case '🇲🇽':
                 paymentDetails = `\n\nPara pagar en México, usa:
 CLABE: 706969168872764411
 Nombre: Gaston Juarez
 Banco: Arcus Fi`;
                 break;
-            case '🇵🇪': 
+            case '🇵🇪':
                 paymentDetails = `\n\nPara pagar en Perú, usa:
 Nombre: Marcelo Gonzales R.
 Yape: 967699188
 Plin: 955095498`;
                 break;
-            case '🇨🇱': 
+            case '🇨🇱':
                 paymentDetails = `\n\nPara pagar en Chile, usa:
 Nombre: BARINIA VALESKA ZENTENO MERINO
 RUT: 17053067-5
@@ -235,7 +248,7 @@ Tipo de cuenta: Cuenta Vista
 Numero de cuenta: 111117053067
 Correo: estraxer2002@gmail.com`;
                 break;
-            case '🇦🇷': 
+            case '🇦🇷':
                 paymentDetails = `\n\nPara pagar en Argentina, usa:
 Nombre: Gaston Juarez
 CBU: 4530000800011127480736`;
@@ -255,7 +268,10 @@ CBU: 4530000800011127480736`;
             headerType: 1
         };
 
+        console.log(`[DEBUG - Manual] Intentando enviar recordatorio a: ${formattedTargetNumber}`);
         await conn.sendMessage(formattedTargetNumber, buttonMessage);
+        console.log(`[DEBUG - Manual] Recordatorio manual enviado exitosamente a: ${formattedTargetNumber}`);
+
 
         // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse en el handler manual ---
         let userDoc = await new Promise((resolve, reject) => {
@@ -300,6 +316,7 @@ CBU: 4530000800011127480736`;
 
         await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` }, { quoted: m });
         await conn.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` });
+        console.log(`[DEBUG - Manual] Confirmación y admin notificados para ${formattedTargetNumber}.`);
 
     } catch (error) {
         console.error('Error al enviar recordatorio manual:', error);
