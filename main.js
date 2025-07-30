@@ -1,4 +1,4 @@
-import Boom from '@hapi/boom';
+import Boom from '@hapi/boom'; // <-- CAMBIO AQUÍ: Importación por defecto
 import P from 'pino';
 import readline from 'readline';
 
@@ -9,7 +9,7 @@ import {
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
-    delay // Asegurarnos de que delay esté importado
+    delay
 } from '@whiskeysockets/baileys';
 
 import { readFileSync, existsSync } from 'fs';
@@ -69,7 +69,7 @@ async function startBot() {
     }
 
     const authConfig = {
-        logger: P({ level: 'silent' }).child({ level: 'silent' }), // 'silent' para no sobrecargar logs, puedes probar 'info' si quieres más detalle de Baileys
+        logger: P({ level: 'silent' }).child({ level: 'silent' }),
         printQRInTerminal: connectionMethod === 'qr',
         browser: ['RichettiBot', 'Safari', '1.0.0'],
         auth: {
@@ -101,13 +101,11 @@ async function startBot() {
         
         sock = makeWASocket({
             ...authConfig,
-            qrTimeoutMs: undefined, // Desactiva el timeout de QR para el modo código
-            pairingCode: true,      // Habilita el emparejamiento por código
-            phoneNumber: phoneNumber // Proporciona el número de teléfono
+            qrTimeoutMs: undefined,
+            pairingCode: true,
+            phoneNumber: phoneNumber
         });
 
-        // *** CAMBIO CLAVE AQUÍ: Listener específico para el pairingCode ANTES de store.bind ***
-        // Este listener se dispara solo cuando el pairingCode está disponible
         sock.ev.once('connection.update', (update) => {
             if (update.pairingCode) {
                 console.log(`╔═══════════════════════════`);
@@ -115,29 +113,26 @@ async function startBot() {
                 console.log(`║ ➜  ${update.pairingCode}`);
                 console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
                 console.log(`╚═══════════════════════════`);
-                // No cerramos rl aquí, ya que el proceso de conexión aún no termina
             }
         });
-        // ***********************************************************************************
     }
 
     store.bind(sock.ev);
 
-
     // --- Manejo de Eventos de Conexión (UNIFICADO) ---
     sock.ev.on('connection.update', async (update) => {
-        const { qr, isNewLogin, lastDisconnect, connection, receivedPendingNotifications } = update; // pairingCode ya lo manejamos arriba
+        const { qr, isNewLogin, lastDisconnect, connection, receivedPendingNotifications } = update;
 
-        // Este if solo se ejecutará si elegimos QR
         if (connectionMethod === 'qr' && qr) {
             console.log('QR Code recibido. Escanéalo con tu teléfono.');
         }
 
         if (connection === 'close') {
-            let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
+            // Se asume que 'Boom' es una clase o constructor que se importa directamente
+            let reason = new Boom(lastDisconnect?.error)?.output.statusCode; // La instancia de Boom que se espera
+
             if (reason === DisconnectReason.badSession) {
                 console.log(`Bad Session File, Please Delete 'Richetti' folder and Scan Again.`);
-                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
@@ -150,7 +145,6 @@ async function startBot() {
                 startBot();
             } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete 'Richetti' folder and Scan Again.`);
-                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.restartRequired) {
                 console.log("Restart Required, Restarting...");
@@ -161,18 +155,14 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
-            // Programar los recordatorios automáticos
             sendAutomaticPaymentReminders(sock);
-            // Intervalo para enviar recordatorios cada 24 horas (24 * 60 * 60 * 1000 ms)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
-            rl.close(); // Cerrar la interfaz readline una vez conectado
+            rl.close();
         }
     });
 
-    // --- Guardar Credenciales ---
     sock.ev.on('creds.update', saveCreds);
 
-    // --- Manejo de Mensajes Entrantes ---
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const m = chatUpdate.messages[0];
@@ -195,5 +185,4 @@ async function startBot() {
     return sock;
 }
 
-// Inicia el bot al ejecutar el script
 startBot();
