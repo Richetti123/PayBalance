@@ -5,7 +5,7 @@ import { setupMaster, fork } from 'cluster';
 import { watchFile, unwatchFile } from 'fs';
 import cfonts from 'cfonts'; // Para los títulos bonitos
 import { createInterface } from 'readline'; // Para interacción por consola
-import os from 'os'; // Para información del sistema
+import os from 'os'; // Aunque no se usen todos los detalles, la importación se mantiene por si acaso.
 import { promises as fsPromises } from 'fs'; // Para leer package.json
 import chalk from 'chalk'; // Para colores en la consola
 
@@ -24,12 +24,12 @@ try {
 const rl = createInterface(process.stdin, process.stdout); // Interfaz para la consola
 
 // --- Branding inicial ---
-cfonts.say(packageJson.name || 'Logistic\nBot', {
+cfonts.say(packageJson.name || 'Cash\nFlow', {
     font: 'chrome',
     align: 'center',
     gradient: ['red', 'magenta']
 });
-cfonts.say(`Por ${packageJson.author || 'Autor Desconocido'}`, {
+cfonts.say(`Por Richetti`, {
     font: 'console',
     align: 'center',
     gradient: ['red', 'magenta']
@@ -91,31 +91,13 @@ async function start(file) {
         // (a menos que el código de salida sea 0, lo que indica un cierre correcto).
         if (code === 0) {
             console.log(chalk.green('✅ El bot ha salido correctamente. No se reiniciará automáticamente.'));
-            // Aquí podrías decidir si quieres un comportamiento diferente para una salida limpia
-            // Por ejemplo, esperar input para reiniciar manualmente.
         } else {
             console.log(chalk.yellow('🔄 Reiniciando el bot debido a un cierre inesperado...'));
             await start('main.js'); // Llama a 'start' para reiniciar el bot
         }
-
-        // Si el proceso no salió con código 0 y no se reinicia directamente,
-        // o para manejar re-inicios por cambios en el archivo (opcional, como en tu original)
-        // Puedes descomentar y ajustar esta parte si quieres que se reinicie solo al detectar cambios
-        // en el archivo si no es un reinicio inmediato por error.
-        /*
-        if (code !== 0) {
-            watchFile(args[0], () => {
-                unwatchFile(args[0]);
-                console.log(chalk.yellow(`\n♻️ Detectado cambio en ${file}. Reiniciando...`));
-                start(file);
-            });
-        }
-        */
     });
 
-    // --- Muestra información de inicio ---
-    const ramInGB = os.totalmem() / (1024 * 1024 * 1024);
-    const freeRamInGB = os.freemem() / (1024 * 1024 * 1024);
+    // --- Muestra información de inicio (compacta) ---
     const currentTime = new Date().toLocaleString();
     let lineM = '⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ 》';
 
@@ -124,9 +106,8 @@ async function start(file) {
 ┊${chalk.blueBright('┊')} ${chalk.blue.bold(`🟢 INFORMACIÓN DEL BOT:`)}
 ┊${chalk.blueBright('┊')}${chalk.cyan(`🤖 Nombre: ${packageJson.name || 'No definido'}`)}
 ┊${chalk.blueBright('┊')}${chalk.cyan(`🔢 Versión: ${packageJson.version || 'N/A'}`)}
-┊${chalk.blueBright('┊')}${chalk.cyan(`✏️ Autor: ${packageJson.author || 'No definido'}`)}
-┊${chalk.blueBright('┊')}${chalk.cyan(`⏰ Hora de Inicio:`)}
-┊${chalk.blueBright('┊')}${chalk.cyan(`${currentTime}`)}
+┊${chalk.blueBright('┊')}${chalk.cyan(`✏️ Autor: Richetti`)}
+┊${chalk.blueBright('┊')}${chalk.cyan(`⏰ Hora de Inicio: ${currentTime}`)}
 ┊${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}
 ╰${lineM}`));
 
@@ -134,7 +115,6 @@ async function start(file) {
     setInterval(() => {}, 1000);
 
     // --- Interacción con la consola (reenvía input al proceso hijo) ---
-    // Puedes comentar estas líneas si no quieres interactuar con el bot directamente por la consola
     if (!rl.listenerCount()) rl.on('line', line => {
         p.emit('message', line.trim());
     });
