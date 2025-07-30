@@ -1,16 +1,15 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
-import { smsg } from './lib/simple.js'; // <-- RUTA CORRECTA para smsg
+import { smsg } from './lib/simple.js';
 import { format } from 'util';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { manejarRespuestaPago } from './lib/respuestapagos.js'; // <-- RUTA CORRECTA
-import { handleIncomingMedia } from './lib/comprobantes.js'; // <-- RUTA CORRECTA
-import { isPaymentProof } from './lib/keywords.js'; // <-- RUTA CORRECTA
+import { manejarRespuestaPago } from './lib/respuestapagos.js';
+import { handleIncomingMedia } from './lib/comprobantes.js';
+import { isPaymentProof } from './lib/keywords.js';
 
-// Definición de __dirname para módulos ES
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -31,15 +30,21 @@ export async function handler(m, conn, store) {
 
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
-        if (m.key.remoteJid === 'status@broadcast') return;
+        if (m.key.remoteJid === 'status@broadcast') return; // Ya tienes esto, pero es crucial.
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
 
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
-        // Este bloque debe ir ANTES de `m = smsg(conn, m);` para usar el 'm' crudo y luego el 'm' normalizado para el comando.
-        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid; // Primera y ÚNICA declaración
-        const senderNumber = senderJid ? senderJid.split('@')[0] : 'Desconocido';
+        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
+
+        // *** AÑADIDO: Verificación temprana de senderJid ***
+        if (!senderJid) {
+            console.warn('Mensaje recibido sin un senderJid válido. Ignorando este mensaje.');
+            return; // Salir si no podemos determinar el remitente.
+        }
+
+        const senderNumber = senderJid.split('@')[0]; // Ahora senderJid está garantizado de no ser undefined/null
         const senderName = m.pushName || 'Desconocido';
         
         let groupName = 'Chat Privado';
@@ -54,8 +59,6 @@ export async function handler(m, conn, store) {
         }
         
         const messageType = Object.keys(m.message || {})[0];
-        // Aquí smsg() todavía no ha procesado el 'm', así que el comando lo extraemos manualmente para el log.
-        // Después, llamamos a smsg para tener 'm.command' y 'm.prefix' para el switch.
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
         const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
 
@@ -73,14 +76,13 @@ export async function handler(m, conn, store) {
         );
         // --- FIN: Bloque para logging visual ---
 
-
         m = smsg(conn, m); // Asegúrate de que esta línea esté después del log inicial
-
-
-        if (!m.sender) return;
+        if (!m.sender) { // Esta verificación es redundante si la anterior funciona, pero no hace daño.
+             return;
+        }
 
         // Inicializar datos del usuario en la base de datos Nedb si no existen
-        // YA NO SE DECLARA 'senderJid' AQUÍ, SE REUTILIZA LA ANTERIOR
+        // 'senderJid' ya está definido y garantizado de ser una cadena aquí.
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: senderJid }, (err, doc) => {
                 if (err) reject(err);
@@ -124,36 +126,31 @@ export async function handler(m, conn, store) {
         }
 
         // 3. Manejar comandos específicos del bot de cobros
-        // Los comandos se extraen con smsg, ahora m.command y m.args ya están disponibles
-        const prefix = m.prefix; // Usar el prefijo detectado por smsg
+        const prefix = m.prefix; 
 
-        switch (m.command) { // Usamos m.command directamente
+        switch (m.command) {
             case 'registrarpago':
-            case 'agregarcliente': // Incluido el alias
-                // Solo el propietario del bot debería poder registrar pagos
+            case 'agregarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js'); // <-- RUTA CORRECTA
+                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                 await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'recordatorio':
-                // Solo el propietario del bot debería poder enviar recordatorios manuales
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: recordatorioHandler } = await import('./plugins/recordatorio.js'); // <-- RUTA CORRECTA
+                const { handler: recordatorioHandler } = await import('./plugins/recordatorio.js');
                 await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'limpiarpago':
-            case 'eliminarcliente': // Incluido el alias
-                // Solo el propietario del bot debería poder limpiar pagos
+            case 'eliminarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js'); // <-- RUTA CORRECTA
+                const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js');
                 await limpiarpagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'clientes':
             case 'listarpagos':
-                // Comando para listar clientes y sus pagos
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
                 if (fs.existsSync(paymentsFilePath)) {
@@ -178,7 +175,6 @@ export async function handler(m, conn, store) {
                 break;
 
             default:
-                // Puedes añadir aquí lógica para mensajes que no son comandos si lo deseas
                 break;
         }
 
