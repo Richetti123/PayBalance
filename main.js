@@ -8,7 +8,6 @@ import {
     makeWASocket, // Esta debería ser la función ahora
     useMultiFileAuthState,
     makeInMemoryStore,
-    PHONENUMBER_MCC,
     DisconnectReason,
     delay
 } from '@whiskeysockets/baileys';
