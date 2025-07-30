@@ -147,7 +147,7 @@ export async function handler(m, conn, store) {
 
             case 'recordatorio':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: recordatorioHandler } = await import('./plugins/recordatorio.js');
+                const { handler: recordatorioHandler } = await import('./plugins/recordatorios.js');
                 await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
