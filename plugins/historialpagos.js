@@ -86,4 +86,4 @@ handler.tags = ['pagos'];
 handler.command = /^(historialpagos)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
