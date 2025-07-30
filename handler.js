@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
-import fetch from 'node-fetch';
+import fetch from 'node-fetch'; // Asegúrate de que fetch esté importado
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
@@ -37,7 +37,7 @@ export async function handler(m, conn, store) {
 
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
-        
+
         senderJid = String(senderJid); 
 
         let senderNumber = 'Desconocido';
@@ -48,7 +48,7 @@ export async function handler(m, conn, store) {
         } else {
             console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
         }
-        
+
         let groupName = 'Chat Privado';
         if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) {
             try {
@@ -59,7 +59,7 @@ export async function handler(m, conn, store) {
                 groupName = 'Grupo (Error)';
             }
         }
-        
+
         const messageType = Object.keys(m.message || {})[0];
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
         const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
@@ -126,17 +126,23 @@ export async function handler(m, conn, store) {
 
         switch (m.command) {
             case 'registrarpago':
-            case 'agregarcliente': // Esto ahora es un alias para el comando de un solo cliente
+            case 'agregarcliente': // Esto es un alias para el comando de un solo cliente
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                 await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
-            case 'agregarclientes': // Nuevo comando para añadir en lote
+            case 'agregarclientes': // Comando para añadir en lote
             case 'registrarlote': // Alias para el comando de añadir en lote
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
                 await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'recibo': // Nuevo comando para enviar recibos/cobros puntuales
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                const { handler: enviarReciboHandler } = await import('./plugins/enviarrecibo.js');
+                await enviarReciboHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'recordatorio':
@@ -177,11 +183,36 @@ export async function handler(m, conn, store) {
                 }
                 break;
 
+            // --- INICIO: Integración del Chatbot (Gemini API) ---
+            // Solo se activa si el mensaje NO es un comando y el usuario NO está esperando una respuesta de pago.
+            // Se coloca aquí para que se ejecute si ningún comando anterior coincide.
             default:
+                if (!m.isCmd && m.text && !user.awaitingPaymentResponse) {
+                    try {
+                        const encodedText = encodeURIComponent(m.text);
+                        const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/gemini?text=${encodedText}`);
+                        const res = await apiii.json();
+
+                        if (res.status && res.response) {
+                            await m.reply(res.response);
+                        } else {
+                            // console.log('Chatbot API no devolvió una respuesta válida o status false:', res);
+                            // Opcional: Puedes enviar una respuesta por defecto si la API falla o no responde
+                            // await m.reply('Lo siento, no pude procesar tu solicitud con el chatbot en este momento.');
+                        }
+                    } catch (e) {
+                        console.error('Error al llamar a la API de Gemini para el chatbot:', e);
+                        // Opcional: Puedes enviar una respuesta por defecto si hay un error de conexión
+                        // await m.reply('Lo siento, hubo un problema al conectar con el servicio de chatbot.');
+                    }
+                    return; // Es importante retornar aquí para evitar que el bot siga procesando el mensaje si el chatbot ya respondió.
+                }
+                // Si el mensaje fue un comando no reconocido, o el usuario estaba esperando respuesta, o no hay texto,
+                // simplemente se ignora y el default no hace nada más.
                 break;
         }
 
     } catch (e) {
-        console.error('Error en handler:', e); // Mantener este console.error para errores generales del handler
+        console.error('Error en handler:', e);
     }
 }
