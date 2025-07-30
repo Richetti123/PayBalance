@@ -1,14 +1,14 @@
-import { generateWAMessageFromContent } from '@whiskeysockets/baileys'; // Esta importación de Baileys está bien aquí
-import { smsg } from './lib/simple.js'; // <-- RUTA CORRECTA, y ahora simple.js estará bien
+import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
+import { smsg } from './lib/simple.js'; // <-- RUTA CORRECTA para smsg
 import { format } from 'util';
-import path from 'path'; // Consolidado
 import { fileURLToPath } from 'url';
+import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { manejarRespuestaPago } from './lib/respuestapagos.js';
-import { handleIncomingMedia } from './lib/comprobantes.js';
-import { isPaymentProof } from './lib/keywords.js';
+import { manejarRespuestaPago } from './lib/respuestapagos.js'; // <-- RUTA CORRECTA
+import { handleIncomingMedia } from './lib/comprobantes.js'; // <-- RUTA CORRECTA
+import { isPaymentProof } from './lib/keywords.js'; // <-- RUTA CORRECTA
 
 // Definición de __dirname para módulos ES
 const __filename = fileURLToPath(import.meta.url);
@@ -36,13 +36,50 @@ export async function handler(m, conn, store) {
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
 
-        m = smsg(conn, m);
-        if (!m.text) return;
+        // --- INICIO: Bloque para logging visual de mensajes recibidos ---
+        // Este bloque debe ir ANTES de `m = smsg(conn, m);` para usar el 'm' crudo y luego el 'm' normalizado para el comando.
+        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
+        const senderNumber = senderJid ? senderJid.split('@')[0] : 'Desconocido';
+        const senderName = m.pushName || 'Desconocido';
+        
+        let groupName = 'Chat Privado';
+        if (m.key.remoteJid.endsWith('@g.us')) {
+            try {
+                const groupMetadata = await conn.groupMetadata(m.key.remoteJid);
+                groupName = groupMetadata.subject || 'Grupo Desconocido';
+            } catch (e) {
+                console.error("Error al obtener metadatos del grupo:", e);
+                groupName = 'Grupo (Error)';
+            }
+        }
+        
+        const messageType = Object.keys(m.message || {})[0];
+        // Aquí smsg() todavía no ha procesado el 'm', así que el comando lo extraemos manualmente para el log.
+        // Después, llamamos a smsg para tener 'm.command' y 'm.prefix' para el switch.
+        const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
+        const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
+
+
+        console.log(
+            `╭━━━━━━━━━━━━━━𖡼\n` +
+            `┃ ❖ Bot: ${conn.user.jid.split(':')[0].replace(':', '')} ~${conn.user.name || 'Bot'}\n` +
+            `┃ ❖ Horario: ${new Date().toLocaleTimeString()}\n` +
+            `┃ ❖ Acción: ${commandForLog ? `Comando: ${commandForLog}` : 'Mensaje'}\n` +
+            `┃ ❖ Usuario: +${senderNumber} ~${senderName}\n` +
+            `┃ ❖ Grupo: ${groupName}\n` + 
+            `┃ ❖ Tipo de mensaje: [Recibido] ${messageType}\n` +
+            `╰━━━━━━━━━━━━━━𖡼\n` +
+            `Contenido: ${rawText || ' (Sin texto legible) '}\n` 
+        );
+        // --- FIN: Bloque para logging visual ---
+
+
+        m = smsg(conn, m); // Asegúrate de que esta línea esté después del log inicial
+
 
         if (!m.sender) return;
 
         // Inicializar datos del usuario en la base de datos Nedb si no existen
-        // Asumiendo que global.db.data.users es una instancia de Nedb Datastore
         const senderJid = m.sender;
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: senderJid }, (err, doc) => {
@@ -87,30 +124,38 @@ export async function handler(m, conn, store) {
         }
 
         // 3. Manejar comandos específicos del bot de cobros
-        const prefix = '.';
-        const command = m.text.startsWith(prefix) ? m.text.slice(prefix.length).split(' ')[0].toLowerCase() : null;
-        const textArgs = m.text.startsWith(prefix) ? m.text.slice(prefix.length + (command ? command.length + 1 : 0)).trim() : m.text.trim();
+        // Los comandos se extraen con smsg, ahora m.command y m.args ya están disponibles
+        const prefix = m.prefix; // Usar el prefijo detectado por smsg
 
-        switch (command) {
+        switch (m.command) { // Usamos m.command directamente
             case 'registrarpago':
+            case 'agregarcliente': // Incluido el alias
                 // Solo el propietario del bot debería poder registrar pagos
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
-                await registrarPagoHandler(m, { conn, text: textArgs, command, usedPrefix: prefix });
+                const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js'); // <-- RUTA CORRECTA
+                await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'recordatorio':
                 // Solo el propietario del bot debería poder enviar recordatorios manuales
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: recordatorioHandler } = await import('./lib/recordatorio.js');
-                await recordatorioHandler(m, { conn, text: textArgs, command, usedPrefix: prefix });
+                const { handler: recordatorioHandler } = await import('./plugins/recordatorio.js'); // <-- RUTA CORRECTA
+                await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'limpiarpago':
+            case 'eliminarcliente': // Incluido el alias
+                // Solo el propietario del bot debería poder limpiar pagos
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js'); // <-- RUTA CORRECTA
+                await limpiarpagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'clientes':
             case 'listarpagos':
                 // Comando para listar clientes y sus pagos
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json'); // path.join(__dirname, '../src', 'pagos.json') también funcionaría si handler estuviera en plugins/
+                const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
                 if (fs.existsSync(paymentsFilePath)) {
                     const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     let clientList = '📊 *Lista de Clientes y Pagos:*\n\n';
@@ -133,7 +178,7 @@ export async function handler(m, conn, store) {
                 break;
 
             default:
-                // Puedes dejar esto vacío o con un mensaje muy genérico para no confundir.
+                // Puedes añadir aquí lógica para mensajes que no son comandos si lo deseas
                 break;
         }
 
