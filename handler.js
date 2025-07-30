@@ -9,14 +9,11 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
-
-// --- NUEVAS IMPORTACIONES DE PLUGINS Y LIBS ---
 import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
 import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
 import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
 import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
 import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
-// REMOVIDO: import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // <--- ¡Esta línea ha sido eliminada!
 import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
 import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
 import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
@@ -27,7 +24,6 @@ import { handler as ayudaHandler } from './plugins/comandos.js'; // Para .ayuda 
 import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
 import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
 import { handler as importarPagosHandler } from './plugins/importarpagos.js'; // Para .importarpagos
-// --- FIN NUEVAS IMPORTACIONES ---
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
