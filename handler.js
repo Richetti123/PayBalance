@@ -4,7 +4,7 @@ import { format } from 'util';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
-import chalk from 'chalk'; // Asegúrate de que esta línea esté presente
+import chalk from 'chalk';
 import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
@@ -44,7 +44,7 @@ export async function handler(m, conn, store) {
         let senderName = m.pushName || 'Desconocido';
 
         if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
-             senderNumber = senderJid.split('@')[0]; 
+            senderNumber = senderJid.split('@')[0]; 
         } else {
             console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
         }
@@ -66,7 +66,7 @@ export async function handler(m, conn, store) {
 
         // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
         console.log(
-            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' + // Naranja oscuro para los bordes
+            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
             chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
             chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
@@ -74,7 +74,7 @@ export async function handler(m, conn, store) {
             chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' + 
             chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
             chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`${rawText || ' (Sin texto legible) '}`) // Contenido en gris para diferenciar
+            chalk.white(`${rawText || ' (Sin texto legible) '}`)
         );
         // --- FIN: Bloque para logging visual ---
 
@@ -126,10 +126,17 @@ export async function handler(m, conn, store) {
 
         switch (m.command) {
             case 'registrarpago':
-            case 'agregarcliente':
+            case 'agregarcliente': // Esto ahora es un alias para el comando de un solo cliente
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                 await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'agregarclientes': // Nuevo comando para añadir en lote
+            case 'registrarlote': // Alias para el comando de añadir en lote
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
+                await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
             case 'recordatorio':
@@ -175,6 +182,6 @@ export async function handler(m, conn, store) {
         }
 
     } catch (e) {
-        console.error('Error en handler:', e);
+        console.error('Error en handler:', e); // Mantener este console.error para errores generales del handler
     }
 }
