@@ -3,7 +3,7 @@ import { smsg } from './lib/simple.js';
 import { format } from 'util';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import fs from 'fs';
+import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
