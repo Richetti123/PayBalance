@@ -1,4 +1,4 @@
-import Boom, { boomify } from '@hapi/boom'; // <-- CAMBIO AQUÍ: Importamos Boom por defecto y boomify nombrado
+import Boom, { boomify } from '@hapi/boom';
 import P from 'pino';
 import readline from 'readline';
 
@@ -14,11 +14,11 @@ import {
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'url'; // <-- CORRECCIÓN AQUÍ
 import Datastore from '@seald-io/nedb';
 import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
-const __filename = fileURLToURL(import.meta.url);
+const __filename = fileURLToPath(import.meta.url); // <-- CORRECCIÓN AQUÍ
 const __dirname = join(__filename, '..');
 
 // --- Configuración de la Base de Datos Nedb ---
@@ -128,7 +128,6 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            // CAMBIO CLAVE AQUÍ: Usamos boomify para envolver el error
             let reason = lastDisconnect?.error ? boomify(lastDisconnect.error)?.output.statusCode : undefined;
 
             if (reason === DisconnectReason.badSession) {
