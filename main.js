@@ -1,5 +1,4 @@
 import Boom from '@hapi/boom';
-import NodeCache from 'node-cache';
 import P from 'pino';
 import readline from 'readline';
 
@@ -8,15 +7,13 @@ import {
     useMultiFileAuthState,
     makeInMemoryStore,
     DisconnectReason,
-    delay,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore
 } from '@whiskeysockets/baileys';
 
-import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs'; // No necesitamos 'writeFileSync' directamente aquí
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import util from 'util';
 import Datastore from '@seald-io/nedb';
 import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
@@ -102,11 +99,12 @@ async function startBot() {
             return;
         }
         
+        // Configuración específica para el emparejamiento por código
         sock = makeWASocket({
             ...authConfig,
             qrTimeoutMs: undefined, // Desactiva el timeout de QR para el modo código
-            pairingCode: true,
-            phoneNumber: phoneNumber
+            pairingCode: true,      // Habilita el emparejamiento por código
+            phoneNumber: phoneNumber // Proporciona el número de teléfono
         });
     }
 
@@ -115,14 +113,16 @@ async function startBot() {
 
     // --- Manejo de Eventos de Conexión (UNIFICADO) ---
     sock.ev.on('connection.update', async (update) => {
-        const { qr, isNewLogin, lastDisconnect, connection, pairingCode } = update; // Añadir pairingCode al destructuring
+        const { qr, isNewLogin, lastDisconnect, connection, pairingCode } = update;
 
-        if (connectionMethod === 'qr' && qr) { // Solo muestra QR si se eligió QR y el QR está presente
-            console.log('QR Code recibido. Escanéalo con tu teléfono.');
+        // **Aseguramos que el código de emparejamiento se imprima inmeditamente si está disponible**
+        if (connectionMethod === 'code' && pairingCode) {
+            console.log(`Tu código de 8 dígitos para vincular: ${pairingCode}`);
+            // No hacemos 'return' aquí para que el flujo de conexión continúe
         }
 
-        if (connectionMethod === 'code' && pairingCode) { // Solo muestra código si se eligió código y está presente
-            console.log(`Tu código de 8 dígitos para vincular: ${pairingCode}`);
+        if (connectionMethod === 'qr' && qr) {
+            console.log('QR Code recibido. Escanéalo con tu teléfono.');
         }
 
         if (connection === 'close') {
