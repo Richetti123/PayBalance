@@ -77,13 +77,13 @@ export async function handler(m, conn, store) {
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         
-        senderJid = String(senderJid);    
+        senderJid = String(senderJid);      
 
         let senderNumber = 'Desconocido';
         let senderName = m.pushName || 'Desconocido'; // Nombre del usuario
 
         if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
-            senderNumber = senderJid.split('@')[0];    
+            senderNumber = senderJid.split('@')[0];     
         } else {
             console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
         }
@@ -117,7 +117,7 @@ export async function handler(m, conn, store) {
         );
         // --- FIN: Bloque para logging visual ---
 
-        m = smsg(conn, m);    
+        m = smsg(conn, m);      
 
         if (!m.sender) {
             console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
@@ -199,7 +199,7 @@ export async function handler(m, conn, store) {
             if (handledMedia) return;
         }
 
-        const prefix = m.prefix;    
+        const prefix = m.prefix;      
 
         switch (m.command) {
             case 'registrarpago':
@@ -351,8 +351,8 @@ export async function handler(m, conn, store) {
             default:
                 // Solo se activa si el mensaje NO es un comando, tiene texto y el usuario NO está esperando una respuesta de pago.
                 // Además, solo responde a usuarios que NO son el propietario del bot.
-                // Y si el modo de pago está activo, y el mensaje no es un comando de pago, y no es una imagen/documento con comprobante
-                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isOwner) {
+                // Y AHORA: solo en chats privados (!m.isGroup).
+                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isOwner && !m.isGroup) { // <--- ¡CAMBIO AQUÍ! Añadido && !m.isGroup
                     try {
                         const personaPrompt = "Eres un amable y eficiente asistente virtual de pagos para WhatsApp. Tu objetivo es ayudar a los usuarios a entender y agilizar sus procesos de pago, proporcionando explicaciones claras y precisas sobre cómo funcionan los pagos y el uso del bot, especialmente cuando el propietario no está disponible. Responde siempre de forma servicial, profesional, concisa y útil, enfocado en resolver dudas relacionadas con pagos o el funcionamiento general del bot. Si te preguntan sobre métodos de pago específicos, menciona que las opciones varían por país (México, Perú, Chile, Argentina) y que para detalles muy concretos o problemas que no puedas resolver, el usuario debería contactar al propietario. Evita dar información personal, financiera o consejos legales, y céntrate en tu rol de guía para pagos y uso del bot.";
 
@@ -362,26 +362,21 @@ export async function handler(m, conn, store) {
                         const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
                         const res = await apiii.json();
 
-                        if (res.status && res.response) {
-                            const aiResponse = res.response;
-                            await m.reply(aiResponse);
+                        // La corrección para usar 'res.content' ya está aquí
+                        if (res.content) { 
+                            const aiResponse = res.content; 
+                            await m.reply(aiResponse); // <-- Esta línea envía el mensaje al usuario!
 
-                            // Frases clave que indican que la IA desvió la consulta al propietario o no pudo resolverla
+                            // Frases clave que indican que la IA desvió la consulta al propietario
                             const deflectionPhrases = [
-                                "contacta al propietario",
-                                "necesitas hablar con el propietario",
-                                "no puedo ayudarte con eso",
-                                "supera mi capacidad",
+                                "contacta al propietario", "necesitas hablar con el propietario",
+                                "no puedo ayudarte con eso", "supera mi capacidad",
                                 "no tengo información detallada sobre eso",
                                 "para eso, por favor, consulta con el propietario",
-                                "no puedo resolver eso directamente",
-                                "lo siento, no tengo esa información",
-                                "para casos específicos",
-                                "requiere la atención del propietario",
-                                "no puedo proporcionar esa información",
-                                "fuera de mi alcance",
-                                "no tengo acceso a esa información",
-                                "necesitarías contactar directamente"
+                                "no puedo resolver eso directamente", "lo siento, no tengo esa información",
+                                "para casos específicos", "requiere la atención del propietario",
+                                "no puedo proporcionar esa información", "fuera de mi alcance",
+                                "no tengo acceso a esa información", "necesitarías contactar directamente"
                             ].map(phrase => phrase.toLowerCase());    
 
                             const aiResponseLower = aiResponse.toLowerCase();
@@ -396,15 +391,14 @@ export async function handler(m, conn, store) {
                             // Si la IA desvió la consulta, notificar al propietario
                             if (aiDeflected) {
                                 const userName = m.pushName || 'Desconocido';
-                                const userNumber = m.sender.split('@')[0]; // Obtiene el número del JID del remitente
+                                const userNumber = m.sender.split('@')[0];
 
                                 const ownerNotification = `❗ *Atención: Consulta Urgente del Chatbot*\n\n` +
                                                                 `El chatbot ha derivado una consulta que no pudo resolver. El usuario ha sido informado de que debe contactar al propietario.\n\n` +
                                                                 `*👤 Usuario:* ${userName}\n` +
                                                                 `*📞 Número:* +${userNumber}\n` +
-                                                                `*💬 Resumen de la Conversación:*\n` +
-                                                                `  - *Última pregunta del usuario:* \`${m.text}\`\n` +
-                                                                `  - *Respuesta del Chatbot (que motivó la derivación):* \`${aiResponse}\`\n\n` +
+                                                                `*💬 Última pregunta del usuario:* \`${m.text}\`\n` +
+                                                                `*💬 Respuesta del Chatbot (que motivó la derivación):* \`${aiResponse}\`\n\n` +
                                                                 `Por favor, revisa y contacta al usuario si es necesario.`;
                                     
                                 await conn.sendMessage(BOT_OWNER_JID, { text: ownerNotification });
@@ -413,12 +407,12 @@ export async function handler(m, conn, store) {
                             }
 
                         } else {
-                            console.log('Chatbot API no devolvió una respuesta válida o status false:', res);
+                            console.log('Chatbot API no devolvió una respuesta con la propiedad "content" válida:', res);
                         }
                     } catch (e) {
                         console.error('Error al llamar a la API de Turbo AI para el chatbot:', e);
                     }
-                    return; // Es importante retornar aquí para evitar que el bot siga procesando el mensaje si el chatbot ya respondió.
+                    return; 
                 }
                 break;
             // --- FIN: Integración del Chatbot (Turbo AI) ---
@@ -426,7 +420,13 @@ export async function handler(m, conn, store) {
 
     } catch (e) {
         console.error('Error en handler:', e);
-        // Opcional: Notificar al propietario si ocurre un error inesperado en el handler principal
-        // await conn.sendMessage(BOT_OWNER_JID, { text: `🚨 ERROR CRÍTICO EN EL HANDLER: ${e.message}\nStack: ${e.stack}` });
     }
 }
+
+// Recarga de módulos en caso de cambios
+let file = fileURLToPath(import.meta.url);
+watchFile(file, () => {
+    unwatchFile(file);
+    console.log(chalk.redBright("Actualizando 'handler.js'..."));
+    import(`${file}?update=${Date.now()}`); 
+});
