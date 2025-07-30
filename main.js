@@ -286,7 +286,7 @@ console.debug = () => {}
 // --- Función Principal de Conexión ---
 async function startBot() {
     // Obtener la última versión de Baileys
-    const { version, is          latest } = await fetchLatestBaileysVersion()
+    const { version, isLatest } = await fetchLatestBaileysVersion() // <-- CORRECCIÓN AQUÍ: eliminado el espacio en 'is latest'
     console.log(chalk.cyan(`[ℹ️] Usando Baileys v${version.join('.')}${!isLatest ? ' (no es la última, considerar actualizar)' : ''}`));
 
 
