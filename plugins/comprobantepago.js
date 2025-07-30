@@ -80,4 +80,4 @@ handler.tags = ['pagos', 'avanzado'];
 handler.command = /^(comprobantepago)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
