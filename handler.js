@@ -16,7 +16,7 @@ import { handler as historialPagosHandler } from './plugins/historialpagos.js'; 
 import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
 import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
 import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
-import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // Para .cambiarmonto
+// REMOVIDO: import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // <--- ¡Esta línea ha sido eliminada!
 import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
 import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
 import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
@@ -231,15 +231,7 @@ export async function handler(m, conn, store) {
                 const { handler: recordatorioHandler } = await import('./plugins/recordatorios.js');
                 await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            // ELIMINADA LA REFERENCIA A 'limpiarpago'
-            // case 'limpiarpago':
-            // case 'eliminarcliente': // Este alias se maneja ahora solo por 'cliente.js'
-            //     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-            //     const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js'); // Esta importación también se elimina
-            //     await limpiarpagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
-            //     break;
-
+            
             case 'clientes':
             case 'listarpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -295,11 +287,11 @@ export async function handler(m, conn, store) {
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await recordatorioLoteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            case 'cambiarmonto':
-                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await cambiarMontoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
-                break;
+            
+            // REMOVIDO: case 'cambiarmonto': // <--- ¡Este case ha sido eliminado!
+            // REMOVIDO:     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+            // REMOVIDO:     await cambiarMontoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+            // REMOVIDO:     break;
 
             case 'suspendercliente':
             case 'activarcliente':
