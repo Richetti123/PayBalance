@@ -58,8 +58,8 @@ CBU: 4530000800011127480736`;
         
         // Construye el mensaje con botones
         const buttons = [
-            { buttonId: 'pago_realizado_recibo', buttonText: { displayText: 'Ya realicé el pago' }, type: 1 },
-            { buttonId: 'necesito_ayuda_recibo', buttonText: { displayText: 'Necesito ayuda' }, type: 1 }
+            { buttonId: '1', buttonText: { displayText: 'Ya realicé el pago' }, type: 1 },
+            { buttonId: '2', buttonText: { displayText: 'Necesito ayuda' }, type: 1 }
         ];
 
         const buttonMessage = {
