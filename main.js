@@ -302,11 +302,14 @@ async function startBot() {
         opcion = '1';
     }
 
-    // --- Lógica Interactiva para elegir tipo de conexión (SIMPLIFICADA) ---
+    // --- Lógica Interactiva para elegir tipo de conexión (SIMPLIFICADA y en blanco) ---
     if (!methodCodeQR && !methodCode && !existsSync('./sessions/creds.json')) {
         do {
-            // MENÚ SIMPLIFICADO AQUÍ
-            opcion = await question(chalk.bold.magentaBright(`\nEscoge opción 1 para QR o opción 2 para código de 8 dígitos:\n---> `));
+            opcion = await question(chalk.white(
+                `CashFlow listo para conectarse escoge el metodo de vinculacion\n` +
+                `1. Codigo QR\n` +
+                `2. Codigo de 8 digitos\n---> `
+            ));
             if (!/^[1-2]$/.test(opcion)) {
                 console.log(chalk.bold.redBright(mid.methodCode11(chalk)));
             }
@@ -324,7 +327,7 @@ async function startBot() {
         }),
         printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
         mobile: MethodMobile,
-        browser: opcion == '1' ? ['LogisticBot', 'Desktop', '3.0'] : methodCodeQR ? ['LogisticBot', 'Desktop', '3.0'] : ["Ubuntu", "Chrome", "20.0.04"],
+        browser: opcion == '1' ? ['CashFlow', 'Desktop', '3.0'] : methodCodeQR ? ['CashFlow', 'Desktop', '3.0'] : ["CashFlow", "Chrome", "20.0.04"],
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
@@ -346,6 +349,9 @@ async function startBot() {
             let addNumber;
             if (phoneNumber) {
                 addNumber = phoneNumber.replace(/[^0-9]/g, '');
+                if (!addNumber.startsWith('+')) {
+                    addNumber = `+${addNumber}`;
+                }
             } else {
                 do {
                     phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
