@@ -1,6 +1,6 @@
 {
-  "name": "RichettiTest",
-  "version": "1.0.0",
+  "name": "CashFlow",
+  "version": "1.0",
   "description": "Bot WhatsApp",
   "main": "main.js",
   "type": "module",
