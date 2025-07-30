@@ -12,7 +12,7 @@ import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
 import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
 import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
-import { handler as pagosAtrasadosHandler } await import('./plugins/pagosatrasados.js'); // Para .pagosatrasados
+import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
 import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
 import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
 import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
