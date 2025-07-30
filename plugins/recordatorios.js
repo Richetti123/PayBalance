@@ -106,11 +106,48 @@ CBU: 4530000800011127480736`;
             try {
                 await client.sendMessage(formattedNumber, buttonMessage);
 
-                if (global.db && global.db.data && global.db.data.users) {
-                    global.db.data.users[formattedNumber] = global.db.data.users[formattedNumber] || {};
-                    global.db.data.users[formattedNumber].awaitingPaymentResponse = true;
-                    global.db.data.users[formattedNumber].paymentClientName = nombre;
-                    global.db.data.users[formattedNumber].paymentClientNumber = numero;
+                // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse ---
+                // Obtener el documento del usuario de Nedb
+                let userDoc = await new Promise((resolve, reject) => {
+                    global.db.data.users.findOne({ id: formattedNumber }, (err, doc) => {
+                        if (err) return reject(err);
+                        resolve(doc);
+                    });
+                });
+
+                if (userDoc) {
+                    // Si el usuario ya existe, actualizarlo
+                    userDoc.awaitingPaymentResponse = true;
+                    userDoc.paymentClientName = nombre;
+                    userDoc.paymentClientNumber = numero;
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: formattedNumber }, { $set: userDoc }, {}, (err) => {
+                            if (err) {
+                                console.error('Error actualizando usuario en DB tras recordatorio:', err);
+                                return reject(err);
+                            }
+                            console.log(`[DEBUG] Estado de awaitingPaymentResponse para ${formattedNumber} establecido a true.`);
+                            resolve();
+                        });
+                    });
+                } else {
+                    // Si el usuario no existe, insertarlo
+                    userDoc = {
+                        id: formattedNumber,
+                        awaitingPaymentResponse: true,
+                        paymentClientName: nombre,
+                        paymentClientNumber: numero
+                    };
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.insert(userDoc, (err, newDoc) => {
+                            if (err) {
+                                console.error('Error insertando usuario en DB tras recordatorio:', err);
+                                return reject(err);
+                            }
+                            console.log(`[DEBUG] Nuevo usuario ${formattedNumber} insertado con awaitingPaymentResponse a true.`);
+                            resolve(newDoc);
+                        });
+                    });
                 }
 
                 const confirmationText = `✅ Recordatorio automático enviado a *${nombre}* (${numero}).`;
@@ -150,7 +187,6 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         let phoneNumberKey = null;
 
         if (clientNameInput) {
-            // *** CAMBIO CLAVE: Búsqueda por nombre (insensible a mayúsculas/minúsculas) ***
             for (const key in clientsData) {
                 if (clientsData[key].nombre && clientsData[key].nombre.toLowerCase() === clientNameInput.toLowerCase()) {
                     clientInfo = clientsData[key];
@@ -172,6 +208,7 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         // Si se especificó un cliente por nombre y se encontró, enviar recordatorio solo a ese cliente
         const { diaPago, monto, bandera, nombre } = clientInfo;
         const numeroSinPrefijo = phoneNumberKey; // Número puro sin @s.whatsapp.net
+        const formattedTargetNumber = numeroSinPrefijo + '@s.whatsapp.net';
 
         let mainReminderMessage = `¡Hola ${nombre}! 👋 Este es un recordatorio de tu pago de ${monto}.`;
         let paymentDetails = '';
@@ -218,14 +255,47 @@ CBU: 4530000800011127480736`;
             headerType: 1
         };
 
-        const formattedTargetNumber = numeroSinPrefijo + '@s.whatsapp.net';
         await conn.sendMessage(formattedTargetNumber, buttonMessage);
 
-        if (global.db && global.db.data && global.db.data.users) {
-            global.db.data.users[formattedTargetNumber] = global.db.data.users[formattedTargetNumber] || {};
-            global.db.data.users[formattedTargetNumber].awaitingPaymentResponse = true;
-            global.db.data.users[formattedTargetNumber].paymentClientName = nombre;
-            global.db.data.users[formattedTargetNumber].paymentClientNumber = numeroSinPrefijo;
+        // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse en el handler manual ---
+        let userDoc = await new Promise((resolve, reject) => {
+            global.db.data.users.findOne({ id: formattedTargetNumber }, (err, doc) => {
+                if (err) return reject(err);
+                resolve(doc);
+            });
+        });
+
+        if (userDoc) {
+            userDoc.awaitingPaymentResponse = true;
+            userDoc.paymentClientName = nombre;
+            userDoc.paymentClientNumber = numeroSinPrefijo;
+            await new Promise((resolve, reject) => {
+                global.db.data.users.update({ id: formattedTargetNumber }, { $set: userDoc }, {}, (err) => {
+                    if (err) {
+                        console.error('Error actualizando usuario en DB tras recordatorio manual:', err);
+                        return reject(err);
+                    }
+                    console.log(`[DEBUG] Estado de awaitingPaymentResponse para ${formattedTargetNumber} establecido a true (manual).`);
+                    resolve();
+                });
+            });
+        } else {
+            userDoc = {
+                id: formattedTargetNumber,
+                awaitingPaymentResponse: true,
+                paymentClientName: nombre,
+                paymentClientNumber: numeroSinPrefijo
+            };
+            await new Promise((resolve, reject) => {
+                global.db.data.users.insert(userDoc, (err, newDoc) => {
+                    if (err) {
+                        console.error('Error insertando usuario en DB tras recordatorio manual:', err);
+                        return reject(err);
+                    }
+                    console.log(`[DEBUG] Nuevo usuario ${formattedTargetNumber} insertado con awaitingPaymentResponse a true (manual).`);
+                    resolve(newDoc);
+                });
+            });
         }
 
         await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` }, { quoted: m });
