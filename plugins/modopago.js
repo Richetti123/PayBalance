@@ -40,4 +40,4 @@ handler.tags = ['config'];
 handler.command = /^(modopago)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
