@@ -23,7 +23,7 @@ import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .e
 import { handler as bienvenidaHandler } from './plugins/bienvenida.js'; // Para .bienvenida
 import { handler as despedidaHandler } from './plugins/despedida.js'; // Para .despedida
 import { handler as derivadosHandler } from './plugins/derivados.js'; // Para .derivados
-import { handler as ayudaHandler } from './plugins/ayuda.js'; // Para .ayuda o .comandos
+import { handler as ayudaHandler } from './plugins/comandos.js'; // Para .ayuda o .comandos
 import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
 import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
 import { handler as importarPagosHandler } from './plugins/importarpagos.js'; // Para .importarpagos
