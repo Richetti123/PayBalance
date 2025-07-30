@@ -102,4 +102,4 @@ handler.tags = ['info', 'config'];
 handler.command = /^(estadobot)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
