@@ -52,7 +52,7 @@ const __dirname = join(__filename, '..');
 // Si ya tienes estas definiciones en tu config.js o en otro archivo,
 // POR FAVOR, ELIMINA ESTAS LÍNEAS para evitar conflictos si las tienes duplicadas.
 global.mid = {
-    methodCode1: "╔═════ᨒ═╍═╍═✦═╍═╍═ᨒ═════╗",
+    methodCode1: "╔═════ᨒ═╍═╍═✦═╍═╍═ᨒ═════╗", // Este y otros ya no se usarán para el menú principal
     methodCode2: "║  [ *SELECCIONE EL TIPO DE CONEXIÓN* ]  ║",
     methodCode3: "OPCIÓN",
     methodCode4: "CONECTAR POR CÓDIGO QR",
@@ -66,7 +66,8 @@ global.mid = {
     methodCode12: 'Conexión por código QR',
     methodCode13: 'Conexión por código de 8 dígitos',
     methodCode14: 'Inicia el bot normalmente',
-    phNumber2: (chalk) => `[ ${chalk.bold.greenBright('⚠️ INGRESAR NÚMERO')} ] POR FAVOR, INGRESE SU NÚMERO DE WHATSAPP CON EL CÓDIGO DE PAÍS. EJEMPLO: ${chalk.yellow('52155XXXXXXXX')}\n---> `,
+    // MODIFICACIÓN AQUÍ: Aclarar que se pide el '+'
+    phNumber2: (chalk) => `[ ${chalk.bold.greenBright('⚠️ INGRESAR NÚMERO')} ] POR FAVOR, INGRESE SU NÚMERO DE WHATSAPP CON EL CÓDIGO DE PAÍS, INCLUYENDO EL SIGNO '+'. EJEMPLO: ${chalk.yellow('+52155XXXXXXXX')}\n---> `,
     pairingCode: '[ ⚠️ CÓDIGO DE EMPAREJAMIENTO ]',
     mCodigoQR: 'ESCANEA EL CÓDIGO QR',
     mConexion: '¡CONEXIÓN ESTABLECIDA CORRECTAMENTE!'
@@ -238,8 +239,12 @@ const question = (texto) => {
 // Función de validación de número de teléfono
 async function isValidPhoneNumber(number) {
     try {
-        number = number.replace(/\s+/g, '')
-        // Si el número empieza con '+521', quitar el '1'
+        // Asegurarse de que el número comience con '+' para la validación de libphonenumber
+        if (!number.startsWith('+')) {
+            number = `+${number}`;
+        }
+        number = number.replace(/\s+/g, '');
+        // Si el número empieza con '+521', quitar el '1' para la validación interna
         if (number.startsWith('+521')) {
             number = number.replace('+521', '+52');
         }
@@ -297,32 +302,11 @@ async function startBot() {
         opcion = '1';
     }
 
-    // --- Lógica Interactiva para elegir tipo de conexión ---
+    // --- Lógica Interactiva para elegir tipo de conexión (SIMPLIFICADA) ---
     if (!methodCodeQR && !methodCode && !existsSync('./sessions/creds.json')) {
         do {
-            let lineM = '⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ ⋯ 》'
-            opcion = await question(`╭${lineM}  
-┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}
-┊ ${chalk.blueBright('┊')} ${chalk.blue.bgBlue.bold.cyan(mid.methodCode1)}
-┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}   
-┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}     
-┊ ${chalk.blueBright('┊')} ${chalk.green.bgMagenta.bold.yellow(mid.methodCode2)}
-┊ ${chalk.blueBright('┊')} ${chalk.bold.redBright(`⇢  ${mid.methodCode3} 1:`)} ${chalk.greenBright(mid.methodCode4)}
-┊ ${chalk.blueBright('┊')} ${chalk.bold.redBright(`⇢  ${mid.methodCode3} 2:`)} ${chalk.greenBright(mid.methodCode5)}
-┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}
-┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}     
-┊ ${chalk.blueBright('┊')} ${chalk.italic.magenta(mid.methodCode6)}
-┊ ${chalk.blueBright('┊')} ${chalk.italic.magenta(mid.methodCode7)}
-┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')} 
-┊ ${chalk.blueBright('╭┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')}    
-┊ ${chalk.blueBright('┊')} ${chalk.red.bgRed.bold.green(mid.methodCode8)}
-┊ ${chalk.blueBright('┊')} ${chalk.italic.cyan(mid.methodCode9)}
-┊ ${chalk.blueBright('┊')} ${chalk.italic.cyan(mid.methodCode10)}
-┊ ${chalk.bold.yellow(`npm run qr ${chalk.italic.magenta(`(${mid.methodCode12})`)}`)}
-┊ ${chalk.bold.yellow(`npm run code ${chalk.italic.magenta(`(${mid.methodCode13})`)}`)}
-┊ ${chalk.bold.yellow(`npm start ${chalk.italic.magenta(`(${mid.methodCode14})`)}`)}
-┊ ${chalk.blueBright('╰┅┅┅┅┅┅┅┅┅┅┅┅┅┅┅')} 
-╰${lineM}\n${chalk.bold.magentaBright('---> ')}`);
+            // MENÚ SIMPLIFICADO AQUÍ
+            opcion = await question(chalk.bold.magentaBright(`\nEscoge opción 1 para QR o opción 2 para código de 8 dígitos:\n---> `));
             if (!/^[1-2]$/.test(opcion)) {
                 console.log(chalk.bold.redBright(mid.methodCode11(chalk)));
             }
@@ -340,7 +324,6 @@ async function startBot() {
         }),
         printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
         mobile: MethodMobile,
-        // Eliminamos pairingCode de aquí, lo solicitaremos explícitamente más abajo
         browser: opcion == '1' ? ['LogisticBot', 'Desktop', '3.0'] : methodCodeQR ? ['LogisticBot', 'Desktop', '3.0'] : ["Ubuntu", "Chrome", "20.0.04"],
         auth: state,
         generateHighQualityLinkPreview: true,
@@ -367,13 +350,12 @@ async function startBot() {
                 do {
                     phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
                     // Limpia el número: elimina espacios, guiones, etc.
-                    phoneNumber = phoneNumber.replace(/\D/g, ''); 
-                    // Asegura el '+' al inicio
-                    if (!phoneNumber.startsWith('+')) {
-                        phoneNumber = `+${phoneNumber}`;
+                    addNumber = phoneNumber.replace(/\D/g, ''); 
+                    // Añade el '+' si no lo tiene (la validación ya lo hace, pero para el `requestPairingCode` es bueno asegurarlo)
+                    if (!addNumber.startsWith('+')) {
+                        addNumber = `+${addNumber}`;
                     }
-                } while (!await isValidPhoneNumber(phoneNumber));
-                addNumber = phoneNumber.replace(/\D/g, '');
+                } while (!await isValidPhoneNumber(addNumber)); // Validar el número ya con el '+'
             }
 
             // Añadir un pequeño delay antes de solicitar el código
@@ -385,14 +367,13 @@ async function startBot() {
                 // Formatea el código para una mejor lectura (ej: "1234-5678")
                 const formattedCode = codeBot?.match(/.{1,4}/g)?.join("-") || codeBot;
                 
-                console.log(chalk.blue(`\nPor favor, espera. Si tu número (${phoneNumber}) es válido, se generará un código de 8 dígitos.`));
+                console.log(chalk.blue(`\nPor favor, espera. Si tu número (${addNumber}) es válido, se generará un código de 8 dígitos.`));
                 console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
                 console.log(chalk.bold.white(chalk.bgMagenta(mid.pairingCode)), chalk.bold.white(chalk.white(formattedCode)));
 
             } catch (error) {
                 console.error(chalk.red(`[❌] Error al solicitar el código de emparejamiento: ${error.message}`));
                 console.log(chalk.yellow(`[⚠️] Asegúrese de que el número sea correcto y de que no haya una sesión de WhatsApp ya abierta en el bot.`));
-                // Opcional: Podrías considerar un process.exit() o relanzar startBot() aquí si el error es crítico.
                 startBot(); // Intenta reiniciar si falla la solicitud del código
             }
         }
@@ -406,7 +387,6 @@ async function startBot() {
             connection,
             lastDisconnect,
             qr,
-            // pairingCode // Ya lo manejamos explícitamente arriba, no es necesario aquí para imprimir
         } = update;
 
         if (connection === 'close') {
