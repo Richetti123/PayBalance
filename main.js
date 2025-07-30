@@ -51,7 +51,7 @@ async function startBot() {
     const sock = makeWASocket({
         logger: P({ level: 'info' }).child({ level: 'info' }), // 'info' para ver logs en la consola
         printQRInTerminal: true,
-        browser: ['Bot de Cobros', 'Desktop', '3.0'],
+        browser: ['Richetti', 'Desktop', '3.0'],
         auth: state, 
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
