@@ -156,50 +156,55 @@ async function cleanMainSession() {
     }
 }
 
+// Función para hacer preguntas en la consola
+function askQuestion(query) {
+    const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+    });
+    return new Promise(resolve => rl.question(query, ans => {
+        rl.close();
+        resolve(ans);
+    }))
+}
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    // 1. Analizar los argumentos de línea de comandos
+    // 1. Analizar los argumentos de línea de comandos para ver si se forzó un modo
     const argv = yargs(process.argv.slice(2)).parse();
-
-    // 2. Comprobar si se pasó el argumento --code para la conexión de 8 dígitos
-    const usePairingCode = argv.code || argv['pairing-code']; // Permite --code o --pairing-code
+    let usePairingCode = false;
     let phoneNumber = null;
 
-    if (usePairingCode) {
-        // Si el número se pasa directamente como un argumento posicional (ej: node . --code 521XXXXXXXXXX)
-        phoneNumber = argv._[0]; 
-        
-        if (!phoneNumber) {
-            console.log(chalk.yellow('\nPor favor, ingresa tu número de teléfono para el código de emparejamiento.'));
-            console.log(chalk.yellow('Ejemplo: node . --code 521XXXXXXXXXX'));
+    // Si ya hay una sesión guardada, asumimos que no necesitamos preguntar por el tipo de conexión
+    if (existsSync('./sessions/creds.json')) {
+        console.log(chalk.green('[✅] Sesión existente encontrada. Conectando automáticamente...'));
+        usePairingCode = false; // Por si acaso se dejó un --code de una ejecución anterior
+    } else {
+        // Si no hay sesión, preguntamos al usuario
+        console.log(chalk.blue('\n¿Cómo quieres conectar tu bot?'));
+        console.log(chalk.cyan('1. Conectar por Código QR (recomendado si es la primera vez)'));
+        console.log(chalk.cyan('2. Conectar por Código de 8 dígitos'));
+        const choice = await askQuestion(chalk.yellow('Ingresa 1 o 2: '));
 
-            // Usamos readline para pedir el número si no se proporcionó
-            const rl = createInterface({
-                input: process.stdin,
-                output: process.stdout
-            });
-            phoneNumber = await new Promise(resolve => {
-                rl.question('Ingresa tu número de WhatsApp con código de país (ej: 521XXXXXXXXXX): ', input => {
-                    rl.close();
-                    resolve(input.replace(/\D/g, '')); // Limpiamos el número de cualquier caracter no dígito
-                });
-            });
+        if (choice === '2') {
+            usePairingCode = true;
+            phoneNumber = argv._[0]; // Intenta obtener el número si se pasó como argumento posicional
 
             if (!phoneNumber) {
-                console.log(chalk.red('Número no proporcionado. Saliendo...'));
+                console.log(chalk.yellow('\nPara el código de 8 dígitos, necesito tu número de teléfono.'));
+                phoneNumber = await askQuestion(chalk.cyan('Ingresa tu número de WhatsApp con código de país (ej: 521XXXXXXXXXX): '));
+                phoneNumber = phoneNumber.replace(/\D/g, ''); // Limpiamos el número
+            }
+
+            if (!phoneNumber || !/^\d+$/.test(phoneNumber)) {
+                console.log(chalk.red('Número de teléfono inválido o no proporcionado. Saliendo...'));
                 process.exit(1);
             }
-        } else {
-            phoneNumber = String(phoneNumber).replace(/\D/g, ''); // Limpiar el número si ya se proporcionó
-        }
-
-        // Validar que el número sea un número de teléfono válido para WhatsApp
-        // Baileys requiere que los números para pairingCode empiecen con el código de país (sin el '+')
-        if (!/^\d+$/.test(phoneNumber)) {
-            console.log(chalk.red('Número de teléfono inválido. Debe contener solo dígitos y el código de país.'));
+        } else if (choice !== '1') {
+            console.log(chalk.red('Opción inválida. Saliendo...'));
             process.exit(1);
         }
+        // Si choice es '1', usePairingCode sigue siendo false, lo que activará el QR.
     }
 
     const {
@@ -211,25 +216,22 @@ async function startBot() {
         logger: P({
             level: 'silent'
         }),
-        // Solo imprimir QR si no se usa el código de emparejamiento
-        printQRInTerminal: !usePairingCode,
+        printQRInTerminal: !usePairingCode, // Solo imprimir QR si no se usa el código de emparejamiento
         browser: ['LogisticBot', 'Desktop', '3.0'],
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false,
-        // Configuración para el código de emparejamiento
         pairingCode: usePairingCode && phoneNumber ? phoneNumber : undefined,
     });
 
     // Asignar sock a global.conn para que las funciones de limpieza lo puedan usar
     global.conn = sock;
 
-    // Si se usa el código de emparejamiento y la conexión aún no está establecida
-    // Baileys imprimirá el código automáticamente si `pairingCode` se configuró correctamente
-    if (usePairingCode && !sock.user && !existsSync('./sessions/creds.json')) { // Solo mostrar si es una nueva conexión con código
-        console.log(chalk.blue(`\nPor favor, espera. Generando código de 8 dígitos...`));
-        console.log(chalk.green(`Una vez generado, ingresa este código en tu WhatsApp móvil:`));
+    // Mensaje para el código de emparejamiento si aplica
+    if (usePairingCode && !existsSync('./sessions/creds.json')) {
+        console.log(chalk.blue(`\nPor favor, espera. Si tu número (${phoneNumber}) es válido, se generará un código de 8 dígitos.`));
+        console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
         // El código aparecerá automáticamente en la consola después de este mensaje si Baileys lo genera.
     }
 
@@ -308,7 +310,6 @@ startBot();
 // Limpiar la carpeta 'tmp' cada 3 minutos
 setInterval(async () => {
     // Solo limpiar si el bot está conectado
-    // La conexión 'conn' es 'sock' y se asignó a global.conn
     if (global.conn && global.conn.user) {
         clearTmp();
     } else {
