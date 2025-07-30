@@ -313,10 +313,14 @@ CBU: 4530000800011127480736`;
                 });
             });
         }
-
+        
+        // --- Nueva línea de depuración ---
+        console.log(`[DEBUG - Manual] Intentando enviar confirmación a m.chat (${m.chat}).`);
         await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` }, { quoted: m });
+        console.log(`[DEBUG - Manual] Confirmación a m.chat enviada exitosamente.`);
+
         await conn.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` });
-        console.log(`[DEBUG - Manual] Confirmación y admin notificados para ${formattedTargetNumber}.`);
+        console.log(`[DEBUG - Manual] Confirmación a admin_number_confirmation enviada.`);
 
     } catch (error) {
         console.error('Error al enviar recordatorio manual:', error);
@@ -325,7 +329,7 @@ CBU: 4530000800011127480736`;
 }
 
 // --- Líneas que faltaban y son CRUCIALES para el comando ---
-handler.help = ['recordatorio <nombre_cliente>']; // Actualizado para reflejar el uso de nombre
+handler.help = ['recordatorio <nombre_cliente>'];
 handler.tags = ['pagos'];
-handler.command = /^(recordatorio|recordar)$/i; // Puedes añadir más alias si quieres
-handler.owner = true; // Solo el propietario puede usar este comando
+handler.command = /^(recordatorio|recordar)$/i;
+handler.owner = true;
