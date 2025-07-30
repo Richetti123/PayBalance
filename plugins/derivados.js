@@ -95,4 +95,4 @@ handler.tags = ['config'];
 handler.command = /^(derivados)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
