@@ -16,7 +16,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
+import { handler as sendAutomaticPaymentReminders } from './plugins/recordatorios.js'; // Importación nombrada con alias
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
