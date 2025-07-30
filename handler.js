@@ -38,7 +38,7 @@ export async function handler(m, conn, store) {
 
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         // Este bloque debe ir ANTES de `m = smsg(conn, m);` para usar el 'm' crudo y luego el 'm' normalizado para el comando.
-        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
+        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid; // Primera y ÚNICA declaración
         const senderNumber = senderJid ? senderJid.split('@')[0] : 'Desconocido';
         const senderName = m.pushName || 'Desconocido';
         
@@ -80,7 +80,7 @@ export async function handler(m, conn, store) {
         if (!m.sender) return;
 
         // Inicializar datos del usuario en la base de datos Nedb si no existen
-        const senderJid = m.sender;
+        // YA NO SE DECLARA 'senderJid' AQUÍ, SE REUTILIZA LA ANTERIOR
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: senderJid }, (err, doc) => {
                 if (err) reject(err);
