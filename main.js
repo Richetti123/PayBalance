@@ -10,7 +10,7 @@ import {
     useMultiFileAuthState,
     makeInMemoryStore,
     DisconnectReason,
-    delay,
+    delay, // Asegurarnos de que 'delay' esté importado
     fetchLatestBaileysVersion // Importar para obtener la última versión
 } from '@whiskeysockets/baileys';
 
@@ -197,13 +197,13 @@ async function cleanMainSession() {
                 // Si es un archivo pre-key y es antiguo (más de 24 horas)
                 if (file.startsWith('pre-key-') && fileStats.mtimeMs < twentyFourHoursAgo) {
                     await unlink(filePath);
-                    console.log(chalk.green(`[🗑️] Pre-key antigua eliminada: ${file}`));
+                    console.log(chalk.green(`[🗑️️] Pre-key antigua eliminada: ${file}`));
                     cleanedFilesCount++;
                 } else if (!file.startsWith('pre-key-')) {
                     // Si no es un archivo pre-key, se considera un archivo residual y se elimina.
                     // Esto cubre otros archivos que Baileys pueda generar que no sean creds.json o pre-key.
                     await unlink(filePath);
-                    console.log(chalk.green(`[🗑️] Archivo residual de sesión eliminado: ${file}`));
+                    console.log(chalk.green(`[🗑️️] Archivo residual de sesión eliminado: ${file}`));
                     cleanedFilesCount++;
                 } else {
                     // console.log(chalk.yellow(`[ℹ️] Manteniendo pre-key activa: ${file}`));
@@ -286,7 +286,7 @@ console.debug = () => {}
 // --- Función Principal de Conexión ---
 async function startBot() {
     // Obtener la última versión de Baileys
-    const { version, isLatest } = await fetchLatestBaileysVersion() // <-- CORRECCIÓN AQUÍ: eliminado el espacio en 'is latest'
+    const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(chalk.cyan(`[ℹ️] Usando Baileys v${version.join('.')}${!isLatest ? ' (no es la última, considerar actualizar)' : ''}`));
 
 
@@ -360,6 +360,8 @@ async function startBot() {
             } while (!await isValidPhoneNumber(addNumber));
             phoneNumber = addNumber; // Actualiza phoneNumber con el número validado y limpiado
         }
+        // Añadir un pequeño delay aquí antes del mensaje
+        await delay(1000); // Espera 1 segundo
         console.log(chalk.blue(`\nPor favor, espera. Si tu número (${phoneNumber}) es válido, se generará un código de 8 dígitos.`));
         console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
         // El código aparecerá automáticamente en la consola, ya que Baileys lo gestiona.
@@ -403,7 +405,8 @@ async function startBot() {
         const {
             connection,
             lastDisconnect,
-            qr
+            qr, // El QR o el código de emparejamiento vendrán en esta variable
+            pairingCode // En Baileys más recientes, el código puede venir aquí
         } = update;
 
         if (connection === 'close') {
@@ -457,12 +460,20 @@ async function startBot() {
             setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000); // Cada 24 horas
         }
         
-        // Manejo de QR desde tu main (2).js (solo si no se usó el método de código y no hay credenciales)
-        if (qr != 0 && qr != undefined && !methodCode && !existsSync('./sessions/creds.json')) {
-            if (opcion == '1' || methodCodeQR) {
-                console.log(chalk.bold.yellow(mid.mCodigoQR));
-            }
+        // --- Manejo de QR y Código de Emparejamiento ---
+        // Si se eligió QR o se usó --qr
+        if ((opcion == '1' || methodCodeQR) && qr != 0 && qr != undefined && !methodCode && !existsSync('./sessions/creds.json')) {
+            console.log(chalk.bold.yellow(mid.mCodigoQR));
+            // El QR se imprime automáticamente en la terminal por `printQRInTerminal: true`
         }
+
+        // Si se eligió el método de código y el pairingCode está presente
+        if ((opcion === '2' || methodCode) && pairingCode && !existsSync('./sessions/creds.json')) {
+            console.log(chalk.bold.green(mid.pairingCode));
+            console.log(chalk.bold.blueBright(`Su código de 8 dígitos es: ${chalk.white.bgBlue(pairingCode)}`));
+            console.log(chalk.bold.green(`Por favor, ingréselo en su WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
+        }
+
     });
 
     // --- Guardar Credenciales ---
