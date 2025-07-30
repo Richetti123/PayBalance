@@ -40,7 +40,7 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
         else if (cleanNumber.length === 11 && !cleanNumber.startsWith('52')) {
             // Podrías ajustar esto para otros prefijos de país si es necesario
             if (cleanNumber.startsWith('1')) { // Asumiendo que es un número de 11 dígitos de Norteamérica
-                cleanNumber = '1' + cleanNumber; // Esto es una corrección si ya tiene el 1 pero no el +
+                // cleanNumber = '1' + cleanNumber; // Esto es una corrección si ya tiene el 1 pero no el +
             } else {
                 // Caso genérico para números que no encajan en 521 o 1, intenta solo mantenerlo
             }
@@ -61,56 +61,98 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
         case 'cliente':
         case 'vercliente':
             if (args.length === 0) {
-                return m.reply(`*Uso correcto:* ${usedPrefix}${command} [número_cliente]\nEj: ${usedPrefix}${command} 5217771234567`);
+                return m.reply(`*Uso correcto:* ${usedPrefix}${command} [número_cliente]\n*O*\n${usedPrefix}${command} [nombre_cliente]\n\nEj: ${usedPrefix}${command} 5217771234567\nEj: ${usedPrefix}${command} Juan Pérez`);
             }
-            let clientNumberToView = normalizeNumber(args[0]);
-            if (!clientNumberToView) {
-                return m.reply('❌ Número de cliente inválido. Debe ser solo dígitos y tener una longitud razonable.');
-            }
-            const clientJidToView = `${clientNumberToView}@s.whatsapp.net`;
+            let identifierToView = args.join(' ').trim(); // Puede ser un número o un nombre
+            let clientToView = null;
+            let clientJidToView = null;
+            let identifiedBy = '';
 
-            if (paymentsData[clientJidToView]) {
-                const client = paymentsData[clientJidToView];
+            // 1. Intentar encontrar por número (método más preciso)
+            let potentialNumberToView = normalizeNumber(identifierToView);
+            if (potentialNumberToView) { // Si se normalizó a un número válido
+                const jidFromNumber = `${potentialNumberToView}@s.whatsapp.net`;
+                if (paymentsData[jidFromNumber]) {
+                    clientToView = paymentsData[jidFromNumber];
+                    clientJidToView = jidFromNumber;
+                    identifiedBy = 'número';
+                }
+            }
+
+            // 2. Si no se encontró por número, intentar por nombre
+            if (!clientToView) {
+                const nameLower = identifierToView.toLowerCase();
+                for (const jid in paymentsData) {
+                    if (paymentsData[jid].nombre.toLowerCase() === nameLower) {
+                        clientToView = paymentsData[jid];
+                        clientJidToView = jid;
+                        identifiedBy = 'nombre';
+                        break; // Detener en el primer nombre que coincida
+                    }
+                }
+            }
+
+            if (clientToView && clientJidToView) {
                 let clientInfo = `*👤 Información del Cliente:*\n\n`;
-                clientInfo += `*• Nombre:* ${client.nombre}\n`;
-                clientInfo += `*• Número:* ${clientNumberToView}\n`;
-                clientInfo += `*• Día de Pago:* ${client.diaPago}\n`;
-                clientInfo += `*• Monto:* ${client.monto}\n`;
-                clientInfo += `*• Bandera:* ${client.bandera}\n`;
-                clientInfo += `*• Estado:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n`;
-                clientInfo += `*• Último Pago Verificado:* ${client.ultimoPagoVerificado || 'N/A'}\n`;
-                clientInfo += `*• Clientes en Lote:* ${client.clientesLote ? Object.keys(client.clientesLote).length : 'N/A'}\n`;
-                clientInfo += `*• Fecha de Registro:* ${new Date(client.fechaRegistro).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`;
+                clientInfo += `*• Nombre:* ${clientToView.nombre}\n`;
+                clientInfo += `*• Número:* ${clientJidToView.replace('@s.whatsapp.net', '')}\n`;
+                clientInfo += `*• Día de Pago:* ${clientToView.diaPago}\n`;
+                clientInfo += `*• Monto:* ${clientToView.monto}\n`;
+                clientInfo += `*• Bandera:* ${clientToView.bandera}\n`;
+                clientInfo += `*• Estado:* ${clientToView.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n`;
+                clientInfo += `*• Último Pago Verificado:* ${clientToView.ultimoPagoVerificado || 'N/A'}\n`;
+                clientInfo += `*• Clientes en Lote:* ${clientToView.clientesLote ? Object.keys(clientToView.clientesLote).length : 'N/A'}\n`;
+                clientInfo += `*• Fecha de Registro:* ${new Date(clientToView.fechaRegistro).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`;
                 
-                if (client.clientesLote && Object.keys(client.clientesLote).length > 0) {
+                if (clientToView.clientesLote && Object.keys(clientToView.clientesLote).length > 0) {
                     clientInfo += `\n*Integrantes del Lote:*\n`;
-                    for (const numLote in client.clientesLote) {
-                        clientInfo += `  - ${client.clientesLote[numLote].nombre} (${numLote.replace('@s.whatsapp.net', '')})\n`;
+                    for (const numLote in clientToView.clientesLote) {
+                        clientInfo += `  - ${clientToView.clientesLote[numLote].nombre} (${numLote.replace('@s.whatsapp.net', '')})\n`;
                     }
                 }
 
                 await m.reply(clientInfo);
             } else {
-                await m.reply(`❌ No se encontró ningún cliente con el número ${clientNumberToView}.`);
+                await m.reply(`❌ No se encontró ningún cliente con el identificador "${identifierToView}".`);
             }
             break;
 
         case 'editarcliente':
             if (args.length < 3) {
-                return m.reply(`*Uso correcto:* ${usedPrefix}${command} [número_cliente] [campo] [nuevo_valor]\nCampos: nombre, diaPago, monto, bandera\nEj: ${usedPrefix}${command} 5217771234567 nombre Juan Pérez`);
+                return m.reply(`*Uso correcto:* ${usedPrefix}${command} [número_o_nombre_cliente] [campo] [nuevo_valor]\nCampos: nombre, diaPago, monto, bandera\nEj: ${usedPrefix}${command} 5217771234567 nombre Juan Pérez\nEj: ${usedPrefix}${command} Juan Pérez monto 500.00`);
             }
-            let editNumber = normalizeNumber(args[0]);
-            if (!editNumber) {
-                return m.reply('❌ Número de cliente inválido para editar.');
-            }
-            const editJid = `${editNumber}@s.whatsapp.net`;
-
-            if (!paymentsData[editJid]) {
-                return m.reply(`❌ No se encontró ningún cliente con el número ${editNumber} para editar.`);
-            }
-
+            let identifierToEdit = args[0]; // Puede ser número o nombre
             const fieldToEdit = args[1].toLowerCase();
             const newValue = args.slice(2).join(' ');
+
+            let clientToEdit = null;
+            let clientJidToEdit = null;
+
+            // 1. Intentar encontrar por número
+            let potentialNumberToEdit = normalizeNumber(identifierToEdit);
+            if (potentialNumberToEdit) {
+                const jidFromNumber = `${potentialNumberToEdit}@s.whatsapp.net`;
+                if (paymentsData[jidFromNumber]) {
+                    clientToEdit = paymentsData[jidFromNumber];
+                    clientJidToEdit = jidFromNumber;
+                }
+            }
+
+            // 2. Si no se encontró por número, intentar por nombre
+            if (!clientToEdit) {
+                const nameLower = identifierToEdit.toLowerCase();
+                for (const jid in paymentsData) {
+                    if (paymentsData[jid].nombre.toLowerCase() === nameLower) {
+                        clientToEdit = paymentsData[jid];
+                        clientJidToEdit = jid;
+                        break;
+                    }
+                }
+            }
+
+            if (!clientToEdit || !clientJidToEdit) {
+                return m.reply(`❌ No se encontró ningún cliente con el identificador "${identifierToEdit}" para editar.`);
+            }
 
             const validFields = ['nombre', 'diapago', 'monto', 'bandera'];
             if (!validFields.includes(fieldToEdit)) {
@@ -123,19 +165,19 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
                 if (isNaN(day) || day < 1 || day > 31) {
                     return m.reply('❌ El día de pago debe ser un número entre 1 y 31.');
                 }
-                paymentsData[editJid].diaPago = day;
+                clientToEdit.diaPago = day;
             } else if (fieldToEdit === 'monto') {
                 const amount = parseFloat(newValue);
                 if (isNaN(amount) || amount <= 0) {
                     return m.reply('❌ El monto debe ser un número positivo.');
                 }
-                paymentsData[editJid].monto = amount.toFixed(2); // Formatea a 2 decimales
+                clientToEdit.monto = amount.toFixed(2); // Formatea a 2 decimales
             } else {
-                paymentsData[editJid][fieldToEdit] = newValue;
+                clientToEdit[fieldToEdit] = newValue;
             }
 
             savePaymentsData(paymentsData);
-            await m.reply(`✅ Cliente ${paymentsData[editJid].nombre} (${editNumber}) actualizado: campo '${fieldToEdit}' ahora es '${newValue}'.`);
+            await m.reply(`✅ Cliente ${clientToEdit.nombre} (${clientJidToEdit.replace('@s.whatsapp.net', '')}) actualizado: campo '${fieldToEdit}' ahora es '${newValue}'.`);
             break;
 
         case 'eliminarcliente':
@@ -143,15 +185,15 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
                 return m.reply(`*Uso correcto:*\n${usedPrefix}${command} [número_cliente]\n*O*\n${usedPrefix}${command} [nombre_cliente]\n\nEjemplos:\n${usedPrefix}${command} 5217771234567\n${usedPrefix}${command} Juan Perez\n\n*¡ADVERTENCIA!* Si eliminas por nombre y hay duplicados, solo se eliminará el *primer* cliente encontrado.`);
             }
 
-            let identifier = args.join(' ').trim(); // Puede ser un número o un nombre
+            let identifierToDelete = args.join(' ').trim(); // Puede ser un número o un nombre
             let clientToDelete = null;
             let deleteType = ''; // 'number' or 'name'
             let clientJidToDelete = null;
 
             // 1. Intentar eliminar por número (es el método más preciso)
-            let potentialNumber = normalizeNumber(identifier);
-            if (potentialNumber) { // Si se normalizó a un número válido
-                const jidFromNumber = `${potentialNumber}@s.whatsapp.net`;
+            let potentialNumberToDelete = normalizeNumber(identifierToDelete);
+            if (potentialNumberToDelete) { // Si se normalizó a un número válido
+                const jidFromNumber = `${potentialNumberToDelete}@s.whatsapp.net`;
                 if (paymentsData[jidFromNumber]) {
                     clientToDelete = paymentsData[jidFromNumber];
                     clientJidToDelete = jidFromNumber;
@@ -161,7 +203,7 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
 
             // 2. Si no se encontró por número, intentar por nombre
             if (!clientToDelete) {
-                const nameLower = identifier.toLowerCase();
+                const nameLower = identifierToDelete.toLowerCase();
                 for (const jid in paymentsData) {
                     if (paymentsData[jid].nombre.toLowerCase() === nameLower) {
                         clientToDelete = paymentsData[jid];
@@ -181,19 +223,22 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
                 savePaymentsData(paymentsData); // Guarda los cambios
                 await m.reply(`🗑️ Cliente *${clientName}* (${clientNumber}) eliminado exitosamente por ${deleteType}.`);
             } else {
-                await m.reply(`❌ No se encontró ningún cliente con el identificador "${identifier}". Intenta con el número completo o el nombre exacto.`);
+                await m.reply(`❌ No se encontró ningún cliente con el identificador "${identifierToDelete}". Intenta con el número completo o el nombre exacto.`);
             }
             break;
 
         default:
-            // Esto no debería ejecutarse si el comando está en el switch del handler principal
-            // pero es un buen fallback si se llama directamente el handler sin un command válido.
             break;
     }
 };
 
 // Actualiza la ayuda para reflejar la capacidad de eliminar por número O nombre
-handler.help = ['cliente <num>', 'vercliente <num>', 'editarcliente <num> <campo> <valor>', 'eliminarcliente <num_o_nombre>'];
+handler.help = [
+    'cliente <num_o_nombre>', 
+    'vercliente <num_o_nombre>', 
+    'editarcliente <num_o_nombre> <campo> <valor>', 
+    'eliminarcliente <num_o_nombre>'
+];
 handler.tags = ['owner']; // Solo el propietario puede usar estos comandos
 handler.command = /^(cliente|vercliente|editarcliente|eliminarcliente)$/i;
 
