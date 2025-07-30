@@ -68,4 +68,4 @@ handler.tags = ['pagos'];
 handler.command = /^(pagosatrasados)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
