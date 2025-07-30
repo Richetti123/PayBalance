@@ -1,43 +1,25 @@
-import Boom, { boomify } from '@hapi/boom';
+import Boom from '@hapi/boom';
+import NodeCache from 'node-cache';
 import P from 'pino';
-import readline from 'readline';
 
+// Aquí importamos makeWASocket y makeInMemoryStore directamente de Baileys.
 import {
     makeWASocket,
     useMultiFileAuthState,
-    makeInMemoryStore,
+    makeInMemoryStore, // <--- Importamos makeInMemoryStore directamente
     DisconnectReason,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore,
     delay
 } from '@whiskeysockets/baileys';
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
+import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
-
-// Importar PhoneNumberUtil para validación y normalización
-import pkg from 'google-libphonenumber';
-const { PhoneNumberUtil } = pkg;
-const phoneUtil = PhoneNumberUtil.getInstance();
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
-
-// --- Función para normalizar números de teléfono ---
-function normalizePhoneNumber(number) {
-    let cleanedNumber = number.replace(/\s+/g, ''); // Eliminar todos los espacios
-    if (!cleanedNumber.startsWith('+')) {
-        cleanedNumber = `+${cleanedNumber}`; // Añadir '+' si falta
-    }
-    // **CORRECCIÓN CLAVE PARA NÚMEROS DE MÉXICO (+521 a +52)**
-    if (cleanedNumber.startsWith('+521')) {
-        cleanedNumber = cleanedNumber.replace('+521', '+52');
-    }
-    return cleanedNumber;
-}
 
 // --- Configuración de la Base de Datos Nedb ---
 global.db = {
@@ -56,160 +38,67 @@ collections.forEach(collection => {
 });
 
 // --- Almacenamiento en Memoria para Baileys ---
-const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
+// *** CAMBIO CLAVE: Inicializamos 'store' usando makeInMemoryStore() ***
+const store = makeInMemoryStore({ logger: P().child({ level: 'info', stream: 'store' }) }); // 'info' para ver logs
 
-// --- Interfaz para leer entrada del usuario ---
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
+// --- Cache para mensajes ---
+const msgRetryCounterCache = new NodeCache();
 
-const question = (query) => new Promise(resolve => rl.question(query, resolve));
-
+// --- Función Principal de Conexión ---
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('Richetti');
-    const { version, isLatest } = await fetchLatestBaileysVersion();
+    // *** CAMBIO CLAVE: Carpeta de sesión 'sessions' ***
+    const { state, saveCreds } = await useMultiFileAuthState('sessions');
 
-    console.log(`Usando Baileys versión: ${version.join('.')}`);
+    const sock = makeWASocket({
+        logger: P({ level: 'info' }).child({ level: 'info' }), // 'info' para ver logs en la consola
+        printQRInTerminal: true,
+        browser: ['Bot de Cobros', 'Desktop', '3.0'],
+        // *** CAMBIO CLAVE: auth: state ***
+        auth: state,
+        generateHighQualityLinkPreview: true,
+        msgRetryCounterCache,
+        shouldIgnoreJid: jid => false
+    });
 
-    let connectionMethod = null;
-
-    // Verificar si ya hay credenciales y si el bot ya está registrado
-    if (state.creds && state.creds.registered === true) {
-        console.log('✅ Credenciales existentes detectadas. Intentando iniciar sesión...');
-        connectionMethod = 'existing'; // No preguntar, intentar reconectar
-    } else {
-        while (connectionMethod === null) {
-            const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
-
-            if (choice === '1') {
-                connectionMethod = 'qr';
-            } else if (choice === '2') {
-                connectionMethod = 'code';
-            } else {
-                console.log('Opción no válida. Por favor, ingresa 1 o 2.');
-            }
-        }
-    }
-
-    const authConfig = {
-        logger: P({ level: 'silent' }).child({ level: 'silent' }),
-        printQRInTerminal: connectionMethod === 'qr',
-        browser: ['RichettiBot', 'Safari', '1.0.0'],
-        auth: {
-            creds: state.creds,
-            // CAMBIO CLAVE AQUÍ: Level de log para makeCacheableSignalKeyStore a 'silent'
-            keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' }).child({ level: 'silent' }))
-        },
-        version,
-        shouldSyncHistoryMessage: true,
-        getMessage: async (key) => {
-            if (store) {
-                const msg = await store.loadMessage(key.remoteJid, key.id);
-                return msg.message || undefined;
-            }
-            return undefined;
-        }
-    };
-
-    let sock;
-
-    if (connectionMethod === 'qr' || connectionMethod === 'existing') {
-        sock = makeWASocket(authConfig);
-    } else { // connectionMethod === 'code'
-        sock = makeWASocket({
-            ...authConfig,
-            qrTimeoutMs: undefined
-        });
-
-        const rawPhoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
-        const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
-
-        try {
-            if (!phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phoneNumber))) {
-                console.error('Número de teléfono inválido o en formato incorrecto después de la normalización. Asegúrate de que es un número de WhatsApp válido.');
-                rl.close();
-                return;
-            }
-        } catch (e) {
-            console.error('Error de validación del número con libphonenumber:', e.message);
-            rl.close();
-            return;
-        }
-
-        try {
-            const code = await sock.requestPairingCode(phoneNumber);
-            console.log(`╔═══════════════════════════`);
-            console.log(`║ 📲 CÓDIGO DE 8 DÍGITOS PARA VINCULAR:`);
-            console.log(`║ ➜  ${code}`);
-            console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
-            console.log(`╚═══════════════════════════`);
-        } catch (e) {
-            console.error('❌ Error al solicitar el código de emparejamiento:', e.message || e);
-            console.log('Asegúrate de que el número de teléfono sea válido y no tenga el "+".');
-            console.log('También, verifica que tu fork de Baileys soporte requestPairingCode de esta manera.');
-            rl.close();
-            return;
-        }
-    }
-
+    // Ahora 'store' es la instancia correcta de InMemoryStore y tiene el método 'bind'
     store.bind(sock.ev);
 
-    // --- Manejo de Eventos de Conexión (UNIFICADO) ---
+    // --- Manejo de Eventos de Conexión ---
     sock.ev.on('connection.update', async (update) => {
-        const { qr, isNewLogin, lastDisconnect, connection, receivedPendingNotifications } = update;
-
-        console.log('🔄 Estado de conexión actualizado:', { connection, isNewLogin, lastDisconnectError: lastDisconnect?.error?.message });
-
-        if (connectionMethod === 'qr' && qr) {
-            console.log('QR Code recibido. Escanéalo con tu teléfono.');
-        }
+        const { connection, lastDisconnect, qr } = update;
 
         if (connection === 'close') {
-            let reason = lastDisconnect?.error ? boomify(lastDisconnect.error)?.output.statusCode : undefined;
-
-            console.log(`🔴 Conexión cerrada. Razón: ${reason}`);
-
+            let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode;
             if (reason === DisconnectReason.badSession) {
-                console.log(`❌ Sesión corrupta. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
-                startBot();
+                console.log(`Bad Session File, Please Delete and Scan Again`);
+                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
             } else if (reason === DisconnectReason.connectionClosed) {
-                console.log("🟡 Conexión cerrada, reconectando....");
+                console.log("Connection closed, reconnecting....");
                 startBot();
             } else if (reason === DisconnectReason.connectionLost) {
-                console.log("🟠 Conexión perdida con el servidor, reconectando...");
+                console.log("Connection Lost from Server, reconnecting...");
                 startBot();
             } else if (reason === DisconnectReason.connectionReplaced) {
-                console.log("⚠️ Conexión reemplazada. Otra sesión se abrió. Cierra la sesión actual e intenta de nuevo.");
-                startBot();
+                console.log("Connection Replaced, Another new session opened, Please Close current session first");
+                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
             } else if (reason === DisconnectReason.loggedOut) {
-                console.log(`⛔ Sesión cerrada. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
-                startBot();
-            } else if (reason === DisconnectReason.restartRequired) {
-                console.log("🔄 Reinicio requerido. Reiniciando el bot...");
-                startBot();
+                console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
+                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
             } else {
-                console.log(`❓ Razón de desconexión desconocida: ${reason}|${lastDisconnect?.error}`);
+                console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
                 startBot();
             }
         } else if (connection === 'open') {
-            console.log('✅ Conexión establecida.');
-            if (isNewLogin) {
-                console.log('✨ ¡Nueva sesión iniciada exitosamente!');
-            } else {
-                console.log('✨ Sesión reconectada exitosamente.');
-            }
+            console.log('Opened connection');
             sendAutomaticPaymentReminders(sock);
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
-            rl.close();
         }
     });
 
-    sock.ev.on('creds.update', () => {
-        console.log('💾 Credenciales actualizadas/guardadas. Verifique la carpeta "Richetti".');
-        saveCreds();
-    });
+    // --- Guardar Credenciales ---
+    sock.ev.on('creds.update', saveCreds);
 
+    // --- Manejo de Mensajes Entrantes ---
     sock.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const m = chatUpdate.messages[0];
@@ -224,8 +113,9 @@ async function startBot() {
 
             const { handler } = await import('./handler.js');
             await handler(m, sock, store);
+
         } catch (e) {
-            console.error('❌ Error en messages.upsert (posiblemente en handler.js):', e);
+            console.error(e);
         }
     });
 
