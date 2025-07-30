@@ -1,6 +1,6 @@
 {
   "modoPagoActivo": false,
-  "mensajeBienvenida": "¡Bienvenido/a al servicio! ¿En qué puedo ayudarte hoy?",
+  "mensajeBienvenida": "¡Hola {user}! Soy tu bot asistente. ¿En qué puedo ayudarte hoy?",
   "mensajeDespedida": "¡Hasta pronto! Esperamos verte de nuevo.",
   "faqs": {}
 }
