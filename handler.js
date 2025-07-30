@@ -5,22 +5,61 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
-import fetch from 'node-fetch'; 
+import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
+
+// --- NUEVAS IMPORTACIONES DE PLUGINS Y LIBS ---
+import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
+import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
+import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
+import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
+import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
+import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // Para .cambiarmonto
+import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
+import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
+import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
+import { handler as bienvenidaHandler } from './plugins/bienvenida.js'; // Para .bienvenida
+import { handler as despedidaHandler } from './plugins/despedida.js'; // Para .despedida
+import { handler as derivadosHandler } from './plugins/derivados.js'; // Para .derivados
+import { handler as ayudaHandler } from './plugins/ayuda.js'; // Para .ayuda o .comandos
+import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
+import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
+// --- FIN NUEVAS IMPORTACIONES ---
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Define el JID del propietario del bot para notificaciones urgentes
-const BOT_OWNER_JID = '5217771303481@s.whatsapp.net'; // ¡Ya actualizado con tu número!
+const BOT_OWNER_JID = '5217771303481@s.whatsapp.net';
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
     clearTimeout(this);
     resolve();
 }, ms));
+
+// --- FUNCIONES PARA CARGAR/GUARDAR CONFIGBOT.JSON ---
+const configBotPath = path.join(__dirname, 'src', 'configbot.json'); // Ruta a configbot.json
+
+const loadConfigBot = () => {
+    if (fs.existsSync(configBotPath)) {
+        return JSON.parse(fs.readFileSync(configBotPath, 'utf8'));
+    }
+    // Retorna una configuración por defecto si el archivo no existe
+    return {
+        modoPagoActivo: false,
+        mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente. ¿En qué puedo ayudarte hoy?",
+        mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
+        faqs: {}
+    };
+};
+
+const saveConfigBot = (config) => {
+    fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
+};
+// --- FIN FUNCIONES CONFIGBOT.JSON ---
 
 /**
  * Handle messages upsert
@@ -41,13 +80,13 @@ export async function handler(m, conn, store) {
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         
-        senderJid = String(senderJid); 
+        senderJid = String(senderJid);    
 
         let senderNumber = 'Desconocido';
         let senderName = m.pushName || 'Desconocido'; // Nombre del usuario
 
         if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
-            senderNumber = senderJid.split('@')[0]; 
+            senderNumber = senderJid.split('@')[0];    
         } else {
             console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
         }
@@ -74,14 +113,14 @@ export async function handler(m, conn, store) {
             chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
             chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
             chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' + 
+            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +    
             chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
             chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`${rawText || ' (Sin texto legible) '}`)
         );
         // --- FIN: Bloque para logging visual ---
 
-        m = smsg(conn, m); 
+        m = smsg(conn, m);    
 
         if (!m.sender) {
             console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
@@ -95,12 +134,19 @@ export async function handler(m, conn, store) {
             });
         });
 
+        // --- Lógica de Bienvenida y FAQs para nuevos usuarios ---
+        let currentConfigData = loadConfigBot(); // Cargar la configuración actual
+
         if (!userDoc) {
+            // Si el usuario es nuevo, inicializarlo y enviar mensaje de bienvenida
             userDoc = {
                 id: m.sender,
                 awaitingPaymentResponse: false,
                 paymentClientName: '',
-                paymentClientNumber: ''
+                paymentClientNumber: '',
+                lastseen: new Date() * 1, // Para registrar la última vez que se vio
+                registered: false, // Puedes usar esto si tienes un comando de registro formal
+                // ... otras propiedades que tengas en tus usuarios
             };
             await new Promise((resolve, reject) => {
                 global.db.data.users.insert(userDoc, (err, newDoc) => {
@@ -108,8 +154,40 @@ export async function handler(m, conn, store) {
                     resolve(newDoc);
                 });
             });
+
+            const welcomeMessage = currentConfigData.mensajeBienvenida
+                .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+                .replace(/{bot}/g, conn.user.name || 'Bot');
+            
+            const faqsList = Object.values(currentConfigData.faqs || {}); // Asegurarse de que faqs es un objeto
+            if (faqsList.length > 0) {
+                const sections = [{
+                    title: '❓ Preguntas Frecuentes',
+                    rows: faqsList.map((faq, index) => ({
+                        title: `${index + 1}. ${faq.pregunta}`,
+                        rowId: `${m.prefix}getfaq ${faq.pregunta}`, // Comando interno para obtener la respuesta
+                        description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
+                    }))
+                }];
+
+                const listMessage = {
+                    text: welcomeMessage,
+                    footer: 'Toca el botón para ver las preguntas frecuentes.',
+                    title: '📚 *Bienvenido/a*',
+                    buttonText: 'Ver Preguntas Frecuentes',
+                    sections
+                };
+                await conn.sendMessage(m.chat, listMessage, { quoted: m });
+            } else {
+                await m.reply(welcomeMessage); // Si no hay FAQs, solo envía el mensaje de bienvenida
+            }
         }
-        const user = userDoc;
+        // Actualizar lastseen para usuarios existentes (o para el recién creado)
+        global.db.data.users.update({ id: m.sender }, { $set: { lastseen: new Date() * 1 } }, {}, (err, numReplaced) => {
+            if (err) console.error("Error al actualizar lastseen:", err);
+        });
+        const user = userDoc; // Usar el documento de usuario (existente o recién creado)
+        // --- FIN Lógica de Bienvenida y FAQs ---
 
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
@@ -124,7 +202,7 @@ export async function handler(m, conn, store) {
             if (handledMedia) return;
         }
 
-        const prefix = m.prefix; 
+        const prefix = m.prefix;    
 
         switch (m.command) {
             case 'registrarpago':
@@ -185,10 +263,98 @@ export async function handler(m, conn, store) {
                 }
                 break;
 
+            // --- NUEVOS COMANDOS INTEGRADOS ---
+
+            case 'cliente':
+            case 'vercliente':
+            case 'editarcliente':
+            case 'eliminarcliente':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await clienteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'historialpagos':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'pagosmes':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await pagosMesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'pagosatrasados':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await pagosAtrasadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'recordatoriolote':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await recordatorioLoteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'cambiarmonto':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await cambiarMontoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'suspendercliente':
+            case 'activarcliente':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await suspenderActivarHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            // `comprobantepago` se maneja más por la detección de media que por un comando explícito,
+            // pero si necesitas un comando que inicie ese flujo, necesitarías un plugin específico.
+            // Por ahora, asumimos que `handleIncomingMedia` y `manejarRespuestaPago` son suficientes.
+
+            case 'modopago':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await modoPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                break;
+
+            case 'estadobot':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await estadoBotHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'bienvenida':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await bienvenidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                break;
+
+            case 'despedida':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await despedidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                break;
+
+            case 'derivados':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await derivadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            case 'ayuda':
+            case 'comandos':
+                await ayudaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+            
+            case 'faq':
+            case 'eliminarfaq':
+                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+            
+            case 'getfaq': // Este es un comando interno, no se usa con prefijo directamente por el usuario
+                await getfaqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                break;
+
+            // --- FIN NUEVOS COMANDOS INTEGRADOS ---
+
             // --- INICIO: Integración del Chatbot (Turbo AI con parámetro 'content' y notificación al owner) ---
             default:
                 // Solo se activa si el mensaje NO es un comando, tiene texto y el usuario NO está esperando una respuesta de pago.
                 // Además, solo responde a usuarios que NO son el propietario del bot.
+                // Y si el modo de pago está activo, y el mensaje no es un comando de pago, y no es una imagen/documento con comprobante
                 if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isOwner) {
                     try {
                         const personaPrompt = "Eres un amable y eficiente asistente virtual de pagos para WhatsApp. Tu objetivo es ayudar a los usuarios a entender y agilizar sus procesos de pago, proporcionando explicaciones claras y precisas sobre cómo funcionan los pagos y el uso del bot, especialmente cuando el propietario no está disponible. Responde siempre de forma servicial, profesional, concisa y útil, enfocado en resolver dudas relacionadas con pagos o el funcionamiento general del bot. Si te preguntan sobre métodos de pago específicos, menciona que las opciones varían por país (México, Perú, Chile, Argentina) y que para detalles muy concretos o problemas que no puedas resolver, el usuario debería contactar al propietario. Evita dar información personal, financiera o consejos legales, y céntrate en tu rol de guía para pagos y uso del bot.";
@@ -204,7 +370,6 @@ export async function handler(m, conn, store) {
                             await m.reply(aiResponse);
 
                             // Frases clave que indican que la IA desvió la consulta al propietario o no pudo resolverla
-                            // Se han refinado las frases para una mejor detección.
                             const deflectionPhrases = [
                                 "contacta al propietario",
                                 "necesitas hablar con el propietario",
@@ -220,7 +385,7 @@ export async function handler(m, conn, store) {
                                 "fuera de mi alcance",
                                 "no tengo acceso a esa información",
                                 "necesitarías contactar directamente"
-                            ].map(phrase => phrase.toLowerCase()); 
+                            ].map(phrase => phrase.toLowerCase());    
 
                             const aiResponseLower = aiResponse.toLowerCase();
                             let aiDeflected = false;
@@ -237,14 +402,14 @@ export async function handler(m, conn, store) {
                                 const userNumber = m.sender.split('@')[0]; // Obtiene el número del JID del remitente
 
                                 const ownerNotification = `❗ *Atención: Consulta Urgente del Chatbot*\n\n` +
-                                                          `El chatbot ha derivado una consulta que no pudo resolver. El usuario ha sido informado de que debe contactar al propietario.\n\n` +
-                                                          `*👤 Usuario:* ${userName}\n` +
-                                                          `*📞 Número:* +${userNumber}\n` +
-                                                          `*💬 Resumen de la Conversación:*\n` +
-                                                          `  - *Última pregunta del usuario:* \`${m.text}\`\n` +
-                                                          `  - *Respuesta del Chatbot (que motivó la derivación):* \`${aiResponse}\`\n\n` +
-                                                          `Por favor, revisa y contacta al usuario si es necesario.`;
-                                
+                                                                `El chatbot ha derivado una consulta que no pudo resolver. El usuario ha sido informado de que debe contactar al propietario.\n\n` +
+                                                                `*👤 Usuario:* ${userName}\n` +
+                                                                `*📞 Número:* +${userNumber}\n` +
+                                                                `*💬 Resumen de la Conversación:*\n` +
+                                                                `  - *Última pregunta del usuario:* \`${m.text}\`\n` +
+                                                                `  - *Respuesta del Chatbot (que motivó la derivación):* \`${aiResponse}\`\n\n` +
+                                                                `Por favor, revisa y contacta al usuario si es necesario.`;
+                                    
                                 await conn.sendMessage(BOT_OWNER_JID, { text: ownerNotification });
                                 console.log(`Notificación de consulta desviada enviada al propietario: ${ownerNotification}`);
 
@@ -252,23 +417,19 @@ export async function handler(m, conn, store) {
 
                         } else {
                             console.log('Chatbot API no devolvió una respuesta válida o status false:', res);
-                            // Opcional: Puedes enviar una respuesta por defecto si la API falla o no responde
-                            // await m.reply('Lo siento, el servicio de chatbot no pudo responder en este momento. Por favor, intenta de nuevo más tarde o contacta al propietario.');
                         }
                     } catch (e) {
                         console.error('Error al llamar a la API de Turbo AI para el chatbot:', e);
-                        // Opcional: Puedes enviar una respuesta por defecto si hay un error de conexión
-                        // await m.reply('Lo siento, hubo un problema técnico al conectar con el chatbot. Por favor, intenta de nuevo más tarde o contacta al propietario.');
                     }
                     return; // Es importante retornar aquí para evitar que el bot siga procesando el mensaje si el chatbot ya respondió.
                 }
-                // Si el mensaje fue un comando no reconocido, o el usuario estaba esperando respuesta,
-                // o no hay texto, o es el propietario, el default no hace nada más.
                 break;
             // --- FIN: Integración del Chatbot (Turbo AI) ---
         }
 
     } catch (e) {
         console.error('Error en handler:', e);
+        // Opcional: Notificar al propietario si ocurre un error inesperado en el handler principal
+        // await conn.sendMessage(BOT_OWNER_JID, { text: `🚨 ERROR CRÍTICO EN EL HANDLER: ${e.message}\nStack: ${e.stack}` });
     }
 }
