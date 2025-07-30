@@ -9,22 +9,25 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
-import { handler as clienteHandler } from './plugins/cliente.js'; // 
-import { handler as historialPagosHandler } from './plugins/historialpagos.js'; 
-import { handler as pagosMesHandler } from './plugins/pagosmes.js'; 
-import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; 
-import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; 
-import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; 
-import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; 
-import { handler as modoPagoHandler } from './plugins/modopago.js'; 
-import { handler as estadoBotHandler } from './plugins/estadobot.js'; 
-import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
-import { handler as despedidaHandler } from './plugins/despedida.js'; 
-import { handler as derivadosHandler } from './plugins/derivados.js'; 
-import { handler as ayudaHandler } from './plugins/ayuda.js'; 
-import { handler as faqHandler } from './plugins/faq.js'; 
-import { handler as getfaqHandler } from './lib/getfaq.js'; 
-import { handler as importarPagosHandler } from './plugins/importarpagos.js'; 
+
+// --- NUEVAS IMPORTACIONES DE PLUGINS Y LIBS ---
+import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
+import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
+import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
+import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; // Para .pagosatrasados
+import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
+import { handler as cambiarMontoHandler } from './plugins/cambiarmonto.js'; // Para .cambiarmonto
+import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
+import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
+import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
+import { handler as bienvenidaHandler } from './plugins/bienvenida.js'; // Para .bienvenida
+import { handler as despedidaHandler } from './plugins/despedida.js'; // Para .despedida
+import { handler as derivadosHandler } from './plugins/derivados.js'; // Para .derivados
+import { handler as ayudaHandler } from './plugins/ayuda.js'; // Para .ayuda o .comandos
+import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
+import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
+import { handler as importarPagosHandler } from './plugins/importarpagos.js'; // Para .importarpagos
+// --- FIN NUEVAS IMPORTACIONES ---
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -229,12 +232,13 @@ export async function handler(m, conn, store) {
                 await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
 
-            case 'limpiarpago':
-            case 'eliminarcliente':
-                if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js');
-                await limpiarpagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
-                break;
+            // ELIMINADA LA REFERENCIA A 'limpiarpago'
+            // case 'limpiarpago':
+            // case 'eliminarcliente': // Este alias se maneja ahora solo por 'cliente.js'
+            //     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+            //     const { handler: limpiarpagoHandler } = await import('./plugins/limpiarpago.js'); // Esta importación también se elimina
+            //     await limpiarpagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+            //     break;
 
             case 'clientes':
             case 'listarpagos':
@@ -246,10 +250,11 @@ export async function handler(m, conn, store) {
                     for (const num in clientsData) {
                         const client = clientsData[num];
                         clientList += `*👤 Nombre:* ${client.nombre}\n`;
-                        clientList += `*📞 Número:* ${num}\n`;
+                        clientList += `*📞 Número:* ${num.replace('@s.whatsapp.net', '')}\n`; // Mostrar solo el número, no el JID completo
                         clientList += `*🗓️ Día de Pago:* ${client.diaPago}\n`;
                         clientList += `*💰 Monto:* ${client.monto}\n`;
                         clientList += `*🌎 Bandera:* ${client.bandera}\n`;
+                        clientList += `*• Estado:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n`; // Añadir estado
                         clientList += '----------------------------\n';
                     }
                     if (Object.keys(clientsData).length === 0) {
@@ -266,9 +271,9 @@ export async function handler(m, conn, store) {
             case 'cliente':
             case 'vercliente':
             case 'editarcliente':
-            case 'eliminarcliente':
+            case 'eliminarcliente': // Ahora este comando solo lo maneja 'cliente.js'
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await clienteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                await clienteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                 break;
 
             case 'historialpagos':
