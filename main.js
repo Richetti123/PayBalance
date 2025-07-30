@@ -1,14 +1,16 @@
 import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
+import readline from 'readline';
 
-// Aquí importamos makeWASocket y makeInMemoryStore directamente de Baileys.
 import {
     makeWASocket,
     useMultiFileAuthState,
-    makeInMemoryStore, // <--- Importamos makeInMemoryStore directamente
+    makeInMemoryStore,
     DisconnectReason,
-    delay
+    delay,
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore
 } from '@whiskeysockets/baileys';
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
@@ -16,7 +18,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -38,38 +40,100 @@ collections.forEach(collection => {
 });
 
 // --- Almacenamiento en Memoria para Baileys ---
-// *** CAMBIO CLAVE: Inicializamos 'store' usando makeInMemoryStore() ***
-const store = makeInMemoryStore({ logger: P().child({ level: 'info', stream: 'store' }) }); // 'info' para ver logs
+// El nivel de log de 'store' puede ser 'silent' ya que los mensajes de eventos son los que importan para el usuario.
+const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
 
-// --- Cache para mensajes ---
-const msgRetryCounterCache = new NodeCache();
+// --- Interfaz para leer entrada del usuario ---
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
 
-// --- Función Principal de Conexión ---
+const question = (query) => new Promise(resolve => rl.question(query, resolve));
+
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
+    // CAMBIO CLAVE AQUÍ: La carpeta de sesión ahora es 'Richetti'
+    const { state, saveCreds } = await useMultiFileAuthState('Richetti'); 
+    const { version, isLatest } = await fetchLatestBaileysVersion(); // 'isUpdating' fue renombrado a 'isLatest' en versiones recientes
 
-    const sock = makeWASocket({
-        logger: P({ level: 'info' }).child({ level: 'info' }), // 'info' para ver logs en la consola
+    console.log(`Usando Baileys versión: ${version.join('.')}`);
+
+    const authConfig = {
+        logger: P({ level: 'silent' }).child({ level: 'silent' }), // Puedes poner 'info' si quieres más logs de Baileys
         printQRInTerminal: true,
-        browser: ['Richetti', 'Desktop', '3.0'],
-        auth: state, 
-        generateHighQualityLinkPreview: true,
-        msgRetryCounterCache,
-        shouldIgnoreJid: jid => false
-    });
+        browser: ['RichettiBot', 'Safari', '1.0.0'],
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'fatal' }).child({ level: 'fatal' }))
+        },
+        version,
+        shouldSyncHistoryMessage: true,
+        getMessage: async (key) => {
+            if (store) {
+                const msg = await store.loadMessage(key.remoteJid, key.id);
+                return msg.message || undefined;
+            }
+            return undefined;
+        }
+    };
 
-    // Ahora 'store' es la instancia correcta de InMemoryStore y tiene el método 'bind'
-    store.bind(sock.ev);
+    let sock;
+    let connectionMethod = null;
+
+    // Bucle para pedir la opción hasta que sea válida
+    while (connectionMethod === null) {
+        const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
+
+        if (choice === '1') {
+            connectionMethod = 'qr';
+        } else if (choice === '2') {
+            connectionMethod = 'code';
+        } else {
+            console.log('Opción no válida. Por favor, ingresa 1 o 2.');
+        }
+    }
+
+    if (connectionMethod === 'qr') {
+        sock = makeWASocket(authConfig);
+    } else { // connectionMethod === 'code'
+        const phoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
+        if (!phoneNumber || !/^\d+$/.test(phoneNumber)) {
+            console.error('Número de teléfono inválido. Reinicia el bot y provee un número válido.');
+            rl.close();
+            return;
+        }
+        authConfig.qrTimeoutMs = undefined; // Desactiva el timeout de QR si usas código
+        sock = makeWASocket({
+            ...authConfig,
+            pairingCode: true,
+            phoneNumber: phoneNumber
+        });
+        
+        // Mover este listener aquí para que el código de emparejamiento se muestre inmediatamente
+        sock.ev.on('connection.update', async (update) => {
+            if (update.pairingCode && update.connection === 'connecting') {
+                console.log(`Tu código de 8 dígitos para vincular: ${update.pairingCode}`);
+            }
+        });
+    }
+
+    store.bind(sock.ev); // Vincula el store después de inicializar sock
 
     // --- Manejo de Eventos de Conexión ---
     sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { qr, isNewLogin, lastDisconnect, connection } = update;
+
+        if (qr && connectionMethod === 'qr') { // Solo muestra si se eligió QR
+            console.log('QR Code recibido. Escanéalo con tu teléfono.');
+            // El QR se imprime automáticamente en la terminal por `printQRInTerminal: true`
+        }
 
         if (connection === 'close') {
-            let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode; 
-            if (reason === DisconnectReason.badSession) { 
-                console.log(`Bad Session File, Please Delete and Scan Again`);
-                process.exit();
+            let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
+            if (reason === DisconnectReason.badSession) {
+                console.log(`Bad Session File, Please Delete 'Richetti' folder and Scan Again.`);
+                // Opcional: fs.rmSync('Richetti', { recursive: true, force: true });
+                startBot();
             } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
                 startBot();
@@ -77,18 +141,24 @@ async function startBot() {
                 console.log("Connection Lost from Server, reconnecting...");
                 startBot();
             } else if (reason === DisconnectReason.connectionReplaced) {
-                console.log("Connection Replaced, Another new session opened, Please Close current session first");
-                process.exit();
+                console.log("Connection Replaced, Another new session opened, please close current session first");
+                startBot();
             } else if (reason === DisconnectReason.loggedOut) {
-                console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
-                process.exit();
+                console.log(`Device Logged Out, Please Delete 'Richetti' folder and Scan Again.`);
+                // Opcional: fs.rmSync('Richetti', { recursive: true, force: true });
+                startBot();
+            } else if (reason === DisconnectReason.restartRequired) {
+                console.log("Restart Required, Restarting...");
+                startBot();
             } else {
                 console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
                 startBot();
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
+            // Programar los recordatorios automáticos
             sendAutomaticPaymentReminders(sock);
+            // Intervalo para enviar recordatorios cada 24 horas (24 * 60 * 60 * 1000 ms)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
         }
     });
@@ -111,13 +181,13 @@ async function startBot() {
 
             const { handler } = await import('./handler.js');
             await handler(m, sock, store);
-
         } catch (e) {
-            console.error(e);
+            console.error('Error en messages.upsert:', e);
         }
     });
 
     return sock;
 }
 
+// Inicia el bot al ejecutar el script
 startBot();
