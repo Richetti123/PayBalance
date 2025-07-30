@@ -98,7 +98,8 @@ async function startBot() {
         browser: ['RichettiBot', 'Safari', '1.0.0'],
         auth: {
             creds: state.creds,
-            keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'fatal' }).child({ level: 'fatal' }))
+            // CAMBIO CLAVE AQUÍ: Level de log para makeCacheableSignalKeyStore a 'silent'
+            keys: makeCacheableSignalKeyStore(state.keys, P({ level: 'silent' }).child({ level: 'silent' }))
         },
         version,
         shouldSyncHistoryMessage: true,
@@ -113,7 +114,7 @@ async function startBot() {
 
     let sock;
 
-    if (connectionMethod === 'qr' || connectionMethod === 'existing') { // Se usa el mismo flujo para QR y Existing
+    if (connectionMethod === 'qr' || connectionMethod === 'existing') {
         sock = makeWASocket(authConfig);
     } else { // connectionMethod === 'code'
         sock = makeWASocket({
@@ -171,7 +172,6 @@ async function startBot() {
 
             if (reason === DisconnectReason.badSession) {
                 console.log(`❌ Sesión corrupta. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
-                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("🟡 Conexión cerrada, reconectando....");
@@ -184,7 +184,6 @@ async function startBot() {
                 startBot();
             } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`⛔ Sesión cerrada. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
-                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.restartRequired) {
                 console.log("🔄 Reinicio requerido. Reiniciando el bot...");
@@ -202,14 +201,13 @@ async function startBot() {
             }
             sendAutomaticPaymentReminders(sock);
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
-            rl.close(); // Cerrar la interfaz readline una vez conectado
+            rl.close();
         }
     });
 
-    // Diagnóstico: Añadir un log para ver si creds.update se dispara
     sock.ev.on('creds.update', () => {
         console.log('💾 Credenciales actualizadas/guardadas. Verifique la carpeta "Richetti".');
-        saveCreds(); // Asegúrate de que saveCreds se siga llamando
+        saveCreds();
     });
 
     sock.ev.on('messages.upsert', async (chatUpdate) => {
