@@ -10,7 +10,7 @@ import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToURL(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
@@ -30,21 +30,27 @@ export async function handler(m, conn, store) {
 
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
-        if (m.key.remoteJid === 'status@broadcast') return; // Ya tienes esto, pero es crucial.
+        if (m.key.remoteJid === 'status@broadcast') return;
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
 
         // --- INICIO: Bloque para logging visual de mensajes recibidos ---
-        const senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
+        let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
 
-        // *** AÑADIDO: Verificación temprana de senderJid ***
-        if (!senderJid) {
-            console.warn('Mensaje recibido sin un senderJid válido. Ignorando este mensaje.');
-            return; // Salir si no podemos determinar el remitente.
+        // *** AÑADIDO: Asegurarse que senderJid sea una cadena antes de usar split() ***
+        // Convertir explícitamente a string. Si es undefined/null, se convertirá en "undefined" o "null".
+        // Luego, split() funcionará sin TypeError.
+        senderJid = String(senderJid); 
+
+        // Ahora, si el senderJid es "undefined" o "null" después de la conversión,
+        // podemos tratarlo como un remitente desconocido y salir.
+        if (senderJid === 'undefined' || senderJid === 'null' || !senderJid) { // También por si es una cadena vacía
+            console.warn('Mensaje recibido sin un senderJid válido (o no se pudo convertir a string). Ignorando este mensaje.');
+            return; 
         }
 
-        const senderNumber = senderJid.split('@')[0]; // Ahora senderJid está garantizado de no ser undefined/null
+        const senderNumber = senderJid.split('@')[0]; 
         const senderName = m.pushName || 'Desconocido';
         
         let groupName = 'Chat Privado';
@@ -76,13 +82,10 @@ export async function handler(m, conn, store) {
         );
         // --- FIN: Bloque para logging visual ---
 
-        m = smsg(conn, m); // Asegúrate de que esta línea esté después del log inicial
-        if (!m.sender) { // Esta verificación es redundante si la anterior funciona, pero no hace daño.
-             return;
-        }
+        m = smsg(conn, m); 
+        // Eliminado: if (!m.sender) { return; } -- La verificación de senderJid al inicio es suficiente
 
         // Inicializar datos del usuario en la base de datos Nedb si no existen
-        // 'senderJid' ya está definido y garantizado de ser una cadena aquí.
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: senderJid }, (err, doc) => {
                 if (err) reject(err);
@@ -104,12 +107,10 @@ export async function handler(m, conn, store) {
                 });
             });
         }
-        // Para acceso directo en el handler
         const user = userDoc;
 
         // --- Lógica del Bot de Cobros ---
 
-        // 1. Manejar respuestas a los mensajes de recordatorio de pago
         const textoMensaje = m.text.toLowerCase();
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
@@ -119,13 +120,11 @@ export async function handler(m, conn, store) {
             if (handled) return;
         }
 
-        // 2. Manejar la llegada de cualquier medio (imagen/documento) para buscar comprobantes
         if (m.message?.imageMessage || m.message?.documentMessage) {
             const handledMedia = await handleIncomingMedia(m, conn);
             if (handledMedia) return;
         }
 
-        // 3. Manejar comandos específicos del bot de cobros
         const prefix = m.prefix; 
 
         switch (m.command) {
