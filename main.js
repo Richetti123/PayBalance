@@ -1,12 +1,12 @@
 import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
-import P from 'pino';
+import P from 'pino'; // Ya importas pino como 'P'
 
 // Aquí importamos makeWASocket y makeInMemoryStore directamente de Baileys.
 import {
     makeWASocket,
     useMultiFileAuthState,
-    makeInMemoryStore, // <--- Importamos makeInMemoryStore directamente
+    makeInMemoryStore,
     DisconnectReason,
     delay
 } from '@whiskeysockets/baileys';
@@ -16,8 +16,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-// *** CORRECCIÓN APLICADA AQUÍ ***
-import { sendAutomaticPaymentRemindersLogic } from './plugins/recordatorios.js'; // Importación nombrada específica para la lógica automática
+import { sendAutomaticPaymentRemindersLogic } from './plugins/recordatorios.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -39,29 +38,27 @@ collections.forEach(collection => {
 });
 
 // --- Almacenamiento en Memoria para Baileys ---
-// *** CAMBIO CLAVE: Inicializamos 'store' usando makeInMemoryStore() ***
-const store = makeInMemoryStore({ logger: P().child({ level: 'info', stream: 'store' }) }); // 'info' para ver logs
+// *** CAMBIO AQUÍ: Configuración del logger para makeInMemoryStore a 'silent' ***
+const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
 
 // --- Cache para mensajes ---
 const msgRetryCounterCache = new NodeCache();
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    // *** CAMBIO CLAVE: Carpeta de sesión 'sessions' ***
     const { state, saveCreds } = await useMultiFileAuthState('sessions');
 
     const sock = makeWASocket({
-        logger: P({ level: 'info' }).child({ level: 'info' }), // 'info' para ver logs en la consola
+        // *** CAMBIO AQUÍ: Configuración del logger para makeWASocket a 'silent' ***
+        logger: P({ level: 'silent' }), // O 'fatal' si quieres ver errores críticos de Baileys
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
-        // *** CAMBIO CLAVE: auth: state ***
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false
     });
 
-    // Ahora 'store' es la instancia correcta de InMemoryStore y tiene el método 'bind'
     store.bind(sock.ev);
 
     // --- Manejo de Eventos de Conexión ---
@@ -72,7 +69,7 @@ async function startBot() {
             let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode;
             if (reason === DisconnectReason.badSession) {
                 console.log(`Bad Session File, Please Delete and Scan Again`);
-                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
+                process.exit();
             } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
                 startBot();
@@ -81,20 +78,17 @@ async function startBot() {
                 startBot();
             } else if (reason === DisconnectReason.connectionReplaced) {
                 console.log("Connection Replaced, Another new session opened, Please Close current session first");
-                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
+                process.exit();
             } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
-                process.exit(); // *** CAMBIO CLAVE: Usa process.exit() ***
+                process.exit();
             } else {
                 console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
                 startBot();
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
-            // *** CORRECCIÓN APLICADA AQUÍ ***
-            // Llama a la lógica de envío de recordatorios automáticos una vez al inicio
-            await sendAutomaticPaymentRemindersLogic(sock); 
-            // Y luego programa la llamada para cada 24 horas (24 * 60 * 60 * 1000 milisegundos)
+            await sendAutomaticPaymentRemindersLogic(sock);
             setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000);
         }
     });
