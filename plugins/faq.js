@@ -115,4 +115,4 @@ handler.tags = ['config'];
 handler.command = /^(faq|eliminarfaq)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
