@@ -8,10 +8,11 @@ import {
     makeInMemoryStore,
     DisconnectReason,
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
+    makeCacheableSignalKeyStore,
+    delay // Asegurarnos de que delay esté importado
 } from '@whiskeysockets/baileys';
 
-import { readFileSync, existsSync } from 'fs'; // No necesitamos 'writeFileSync' directamente aquí
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import Datastore from '@seald-io/nedb';
@@ -55,7 +56,6 @@ async function startBot() {
 
     let connectionMethod = null;
 
-    // Bucle para pedir la opción hasta que sea válida
     while (connectionMethod === null) {
         const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
 
@@ -69,8 +69,8 @@ async function startBot() {
     }
 
     const authConfig = {
-        logger: P({ level: 'silent' }).child({ level: 'silent' }),
-        printQRInTerminal: connectionMethod === 'qr', // Solo imprime QR si se eligió QR
+        logger: P({ level: 'silent' }).child({ level: 'silent' }), // 'silent' para no sobrecargar logs, puedes probar 'info' si quieres más detalle de Baileys
+        printQRInTerminal: connectionMethod === 'qr',
         browser: ['RichettiBot', 'Safari', '1.0.0'],
         auth: {
             creds: state.creds,
@@ -99,28 +99,36 @@ async function startBot() {
             return;
         }
         
-        // Configuración específica para el emparejamiento por código
         sock = makeWASocket({
             ...authConfig,
             qrTimeoutMs: undefined, // Desactiva el timeout de QR para el modo código
             pairingCode: true,      // Habilita el emparejamiento por código
             phoneNumber: phoneNumber // Proporciona el número de teléfono
         });
+
+        // *** CAMBIO CLAVE AQUÍ: Listener específico para el pairingCode ANTES de store.bind ***
+        // Este listener se dispara solo cuando el pairingCode está disponible
+        sock.ev.once('connection.update', (update) => {
+            if (update.pairingCode) {
+                console.log(`╔═══════════════════════════`);
+                console.log(`║ 📲 CÓDIGO DE 8 DÍGITOS PARA VINCULAR:`);
+                console.log(`║ ➜  ${update.pairingCode}`);
+                console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
+                console.log(`╚═══════════════════════════`);
+                // No cerramos rl aquí, ya que el proceso de conexión aún no termina
+            }
+        });
+        // ***********************************************************************************
     }
 
-    store.bind(sock.ev); // Vincula el store después de inicializar sock
+    store.bind(sock.ev);
 
 
     // --- Manejo de Eventos de Conexión (UNIFICADO) ---
     sock.ev.on('connection.update', async (update) => {
-        const { qr, isNewLogin, lastDisconnect, connection, pairingCode } = update;
+        const { qr, isNewLogin, lastDisconnect, connection, receivedPendingNotifications } = update; // pairingCode ya lo manejamos arriba
 
-        // **Aseguramos que el código de emparejamiento se imprima inmeditamente si está disponible**
-        if (connectionMethod === 'code' && pairingCode) {
-            console.log(`Tu código de 8 dígitos para vincular: ${pairingCode}`);
-            // No hacemos 'return' aquí para que el flujo de conexión continúe
-        }
-
+        // Este if solo se ejecutará si elegimos QR
         if (connectionMethod === 'qr' && qr) {
             console.log('QR Code recibido. Escanéalo con tu teléfono.');
         }
