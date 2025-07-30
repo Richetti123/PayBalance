@@ -2,6 +2,8 @@ import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
 import chalk from 'chalk'; // Importamos chalk para los colores en la consola
+import yargs from 'yargs'; // Importamos yargs para analizar argumentos de línea de comandos
+import { createInterface } from 'readline'; // Importamos readline para interactuar con la consola
 
 import {
     makeWASocket,
@@ -157,7 +159,49 @@ async function cleanMainSession() {
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    // La carpeta de sesiones es 'sessions' según tu configuración
+    // 1. Analizar los argumentos de línea de comandos
+    const argv = yargs(process.argv.slice(2)).parse();
+
+    // 2. Comprobar si se pasó el argumento --code para la conexión de 8 dígitos
+    const usePairingCode = argv.code || argv['pairing-code']; // Permite --code o --pairing-code
+    let phoneNumber = null;
+
+    if (usePairingCode) {
+        // Si el número se pasa directamente como un argumento posicional (ej: node . --code 521XXXXXXXXXX)
+        phoneNumber = argv._[0]; 
+        
+        if (!phoneNumber) {
+            console.log(chalk.yellow('\nPor favor, ingresa tu número de teléfono para el código de emparejamiento.'));
+            console.log(chalk.yellow('Ejemplo: node . --code 521XXXXXXXXXX'));
+
+            // Usamos readline para pedir el número si no se proporcionó
+            const rl = createInterface({
+                input: process.stdin,
+                output: process.stdout
+            });
+            phoneNumber = await new Promise(resolve => {
+                rl.question('Ingresa tu número de WhatsApp con código de país (ej: 521XXXXXXXXXX): ', input => {
+                    rl.close();
+                    resolve(input.replace(/\D/g, '')); // Limpiamos el número de cualquier caracter no dígito
+                });
+            });
+
+            if (!phoneNumber) {
+                console.log(chalk.red('Número no proporcionado. Saliendo...'));
+                process.exit(1);
+            }
+        } else {
+            phoneNumber = String(phoneNumber).replace(/\D/g, ''); // Limpiar el número si ya se proporcionó
+        }
+
+        // Validar que el número sea un número de teléfono válido para WhatsApp
+        // Baileys requiere que los números para pairingCode empiecen con el código de país (sin el '+')
+        if (!/^\d+$/.test(phoneNumber)) {
+            console.log(chalk.red('Número de teléfono inválido. Debe contener solo dígitos y el código de país.'));
+            process.exit(1);
+        }
+    }
+
     const {
         state,
         saveCreds
@@ -167,13 +211,28 @@ async function startBot() {
         logger: P({
             level: 'silent'
         }),
-        printQRInTerminal: true,
+        // Solo imprimir QR si no se usa el código de emparejamiento
+        printQRInTerminal: !usePairingCode,
         browser: ['LogisticBot', 'Desktop', '3.0'],
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
-        shouldIgnoreJid: jid => false
+        shouldIgnoreJid: jid => false,
+        // Configuración para el código de emparejamiento
+        pairingCode: usePairingCode && phoneNumber ? phoneNumber : undefined,
     });
+
+    // Asignar sock a global.conn para que las funciones de limpieza lo puedan usar
+    global.conn = sock;
+
+    // Si se usa el código de emparejamiento y la conexión aún no está establecida
+    // Baileys imprimirá el código automáticamente si `pairingCode` se configuró correctamente
+    if (usePairingCode && !sock.user && !existsSync('./sessions/creds.json')) { // Solo mostrar si es una nueva conexión con código
+        console.log(chalk.blue(`\nPor favor, espera. Generando código de 8 dígitos...`));
+        console.log(chalk.green(`Una vez generado, ingresa este código en tu WhatsApp móvil:`));
+        // El código aparecerá automáticamente en la consola después de este mensaje si Baileys lo genera.
+    }
+
 
     store.bind(sock.ev);
 
@@ -249,7 +308,8 @@ startBot();
 // Limpiar la carpeta 'tmp' cada 3 minutos
 setInterval(async () => {
     // Solo limpiar si el bot está conectado
-    if (global.conn && global.conn.user) { 
+    // La conexión 'conn' es 'sock' y se asignó a global.conn
+    if (global.conn && global.conn.user) {
         clearTmp();
     } else {
         // console.log(chalk.gray('[ℹ️] Bot desconectado, omitiendo limpieza de tmp.'));
