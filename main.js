@@ -16,7 +16,8 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import { handler as sendAutomaticPaymentReminders } from './plugins/recordatorios.js'; // Importación nombrada con alias
+// *** CORRECCIÓN APLICADA AQUÍ ***
+import { sendAutomaticPaymentRemindersLogic } from './plugins/recordatorios.js'; // Importación nombrada específica para la lógica automática
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -90,8 +91,11 @@ async function startBot() {
             }
         } else if (connection === 'open') {
             console.log('Opened connection');
-            sendAutomaticPaymentReminders(sock);
-            setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
+            // *** CORRECCIÓN APLICADA AQUÍ ***
+            // Llama a la lógica de envío de recordatorios automáticos una vez al inicio
+            await sendAutomaticPaymentRemindersLogic(sock); 
+            // Y luego programa la llamada para cada 24 horas (24 * 60 * 60 * 1000 milisegundos)
+            setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000);
         }
     });
 
