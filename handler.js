@@ -1,16 +1,16 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
-import { fileURLToPath } from 'url'; // Corrected import
+import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
-import chalk from 'chalk';
+import chalk from 'chalk'; // Asegúrate de que esta línea esté presente
 import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 
-const __filename = fileURLToPath(import.meta.url); // Corrected usage
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
@@ -39,7 +39,6 @@ export async function handler(m, conn, store) {
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         
         // Convertir explícitamente a string. Si es undefined/null, se convertirá en "undefined" o "null".
-        // Esto asegura que `split()` siempre pueda ser llamado, aunque el resultado sea "undefined".
         senderJid = String(senderJid); 
 
         let senderNumber = 'Desconocido';
@@ -50,14 +49,10 @@ export async function handler(m, conn, store) {
              senderNumber = senderJid.split('@')[0]; 
         } else {
             console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
-            // Podrías decidir si quieres retornar aquí o continuar con "Desconocido"
-            // Por ahora, continuaremos con "Desconocido" para senderNumber.
-            // Si el resto del bot depende de un senderJid válido, es mejor un 'return'.
-            // Para depuración, mantengamos el log y continuemos.
         }
         
         let groupName = 'Chat Privado';
-        if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) { // Añadida verificación para m.key.remoteJid
+        if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) {
             try {
                 const groupMetadata = await conn.groupMetadata(m.key.remoteJid);
                 groupName = groupMetadata.subject || 'Grupo Desconocido';
@@ -71,31 +66,27 @@ export async function handler(m, conn, store) {
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
         const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
 
-
+        // *** BLOQUE DE CONSOLE.LOG CON COLORES ***
         console.log(
-            `╭━━━━━━━━━━━━━━𖡼\n` +
-            `┃ ❖ Bot: ${conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A'} ~${conn.user?.name || 'Bot'}\n` + // Más robusto para conn.user
-            `┃ ❖ Horario: ${new Date().toLocaleTimeString()}\n` +
-            `┃ ❖ Acción: ${commandForLog ? `Comando: ${commandForLog}` : 'Mensaje'}\n` +
-            `┃ ❖ Usuario: +${senderNumber} ~${senderName}\n` +
-            `┃ ❖ Grupo: ${groupName}\n` + 
-            `┃ ❖ Tipo de mensaje: [Recibido] ${messageType}\n` +
-            `╰━━━━━━━━━━━━━━𖡼\n` +
-            `Contenido: ${rawText || ' (Sin texto legible) '}\n` 
+            chalk.hex('#FFD700')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.cyan(`┃ ❖ Bot: ${chalk.green(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.green(conn.user?.name || 'Bot')}`) + '\n' +
+            chalk.cyan(`┃ ❖ Horario: ${chalk.magenta(new Date().toLocaleTimeString())}`) + '\n' +
+            chalk.cyan(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.cyan(`┃ ❖ Usuario: ${chalk.blue('+' + senderNumber)} ~${chalk.blue(senderName)}`) + '\n' +
+            chalk.cyan(`┃ ❖ Grupo: ${chalk.white.bold(groupName)}`) + '\n' + 
+            chalk.cyan(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
+            chalk.hex('#FFD700')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.hex('#FFA500')(`Contenido: ${rawText || ' (Sin texto legible) '}`) 
         );
         // --- FIN: Bloque para logging visual ---
 
         m = smsg(conn, m); 
 
-        // Si después de smsg, m.sender no es válido, salimos.
-        // Esto es crucial para la lógica de la DB que usa m.sender.
         if (!m.sender) {
             console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
             return;
         }
 
-        // Inicializar datos del usuario en la base de datos Nedb si no existen
-        // Ahora usamos m.sender ya procesado por smsg, que es más fiable para la DB.
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                 if (err) reject(err);
@@ -105,7 +96,7 @@ export async function handler(m, conn, store) {
 
         if (!userDoc) {
             userDoc = {
-                id: m.sender, // Usar m.sender aquí
+                id: m.sender,
                 awaitingPaymentResponse: false,
                 paymentClientName: '',
                 paymentClientNumber: ''
@@ -118,8 +109,6 @@ export async function handler(m, conn, store) {
             });
         }
         const user = userDoc;
-
-        // --- Lógica del Bot de Cobros ---
 
         const textoMensaje = m.text.toLowerCase();
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
