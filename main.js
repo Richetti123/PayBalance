@@ -1,4 +1,4 @@
-import Boom from '@hapi/boom'; // <-- CAMBIO AQUÍ: Importación por defecto
+import Boom, { boomify } from '@hapi/boom'; // <-- CAMBIO AQUÍ: Importamos Boom por defecto y boomify nombrado
 import P from 'pino';
 import readline from 'readline';
 
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'url';
 import Datastore from '@seald-io/nedb';
 import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToURL(import.meta.url);
 const __dirname = join(__filename, '..');
 
 // --- Configuración de la Base de Datos Nedb ---
@@ -128,8 +128,8 @@ async function startBot() {
         }
 
         if (connection === 'close') {
-            // Se asume que 'Boom' es una clase o constructor que se importa directamente
-            let reason = new Boom(lastDisconnect?.error)?.output.statusCode; // La instancia de Boom que se espera
+            // CAMBIO CLAVE AQUÍ: Usamos boomify para envolver el error
+            let reason = lastDisconnect?.error ? boomify(lastDisconnect.error)?.output.statusCode : undefined;
 
             if (reason === DisconnectReason.badSession) {
                 console.log(`Bad Session File, Please Delete 'Richetti' folder and Scan Again.`);
