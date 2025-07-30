@@ -1,8 +1,17 @@
 import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
-// No importamos Baileys aquí de forma estática.
-// Lo haremos dinámicamente dentro de la función startBot.
+
+// Aquí importamos makeWASocket y otras utilidades como exportaciones nombradas.
+// Esta es la forma más común y recomendada para @whiskeysockets/baileys.
+import {
+    makeWASocket, // Debería ser la función principal
+    useMultiFileAuthState,
+    makeInMemoryStore,
+    PHONENUMBER_MCC,
+    DisconnectReason,
+    delay
+} from '@whiskeysockets/baileys';
 
 import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -30,29 +39,17 @@ collections.forEach(collection => {
     global.db.data[collection].loadDatabase();
 });
 
-// Cache para mensajes
-const msgRetryCounterCache = new NodeCache();
+// --- Almacenamiento en Memoria para Baileys ---
+const store = makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
 
-// Declarar 'store' fuera de la función, pero inicializarlo dentro
-// o una vez que Baileys esté cargado. Por ahora, lo inicializaremos dentro
-// de startBot una vez que tengamos acceso a makeInMemoryStore.
-let store;
+// --- Cache para mensajes ---
+const msgRetryCounterCache = new NodeCache();
 
 // --- Función Principal de Conexión ---
 async function startBot() {
-    // Importación dinámica de Baileys aquí
-    const Baileys = await import('@whiskeysockets/baileys');
+    const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
-    // Ahora, accedemos a las funciones de Baileys desde el objeto 'Baileys'
-    // Intentaremos obtener makeWASocket de la exportación por defecto, si no, del objeto principal.
-    const makeWASocket = Baileys.default || Baileys.makeWASocket;
-
-    // Inicializar store aquí, después de que Baileys esté cargado
-    store = Baileys.makeInMemoryStore({ logger: P().child({ level: 'silent', stream: 'store' }) });
-
-    const { state, saveCreds } = await Baileys.useMultiFileAuthState('sessions'); 
-
-    const sock = makeWASocket({ // Usamos la función makeWASocket obtenida dinámicamente
+    const sock = makeWASocket({ // Esta es la llamada que esperamos funcione
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
@@ -80,25 +77,25 @@ async function startBot() {
 
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-            if (reason === Baileys.DisconnectReason.badSession) { 
+            if (reason === DisconnectReason.badSession) { 
                 console.log(`Bad Session File, Please Delete and Scan Again`);
                 process.exit();
-            } else if (reason === Baileys.DisconnectReason.connectionClosed) {
+            } else if (reason === DisconnectReason.connectionClosed) {
                 console.log("Connection closed, reconnecting....");
                 startBot();
-            } else if (reason === Baileys.DisconnectReason.connectionLost) {
+            } else if (reason === DisconnectReason.connectionLost) {
                 console.log("Connection Lost from Server, reconnecting...");
                 startBot();
-            } else if (reason === Baileys.DisconnectReason.connectionReplaced) {
+            } else if (reason === DisconnectReason.connectionReplaced) {
                 console.log("Connection Replaced, Another new session opened, Please Close current session first");
                 process.exit();
-            } else if (reason === Baileys.DisconnectReason.loggedOut) {
+            } else if (reason === DisconnectReason.loggedOut) {
                 console.log(`Device Logged Out, Please Delete Session and Scan Again.`);
                 process.exit();
-            } else if (reason === Baileys.DisconnectReason.restartRequired) {
+            } else if (reason === DisconnectReason.restartRequired) {
                 console.log("Restart Required, Restarting...");
                 startBot();
-            } else if (reason === Baileys.DisconnectReason.timedOut) {
+            } else if (reason === DisconnectReason.timedOut) {
                 console.log("Connection TimedOut, Reconnecting...");
                 startBot();
             } else {
@@ -116,27 +113,4 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds);
 
     // --- Manejo de Mensajes Entrantes ---
-    sock.ev.on('messages.upsert', async (chatUpdate) => {
-        try {
-            const m = chatUpdate.messages[0];
-            if (!m.message) return;
-            if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
-            if (m.key.remoteJid === 'status@broadcast') return;
-
-            m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
-            m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
-
-            global.self = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-
-            const { handler } = await import('./handler.js');
-            await handler(m, sock, store);
-
-        } catch (e) {
-            console.error(e);
-        }
-    });
-
-    return sock;
-}
-
-startBot();
+    sock.ev.on('messages.upsert', async
