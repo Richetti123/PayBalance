@@ -14,11 +14,11 @@ import {
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { fileURLToPath } from 'url'; // <-- CORRECCIÓN AQUÍ
+import { fileURLToPath } from 'url';
 import Datastore from '@seald-io/nedb';
 import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
-const __filename = fileURLToPath(import.meta.url); // <-- CORRECCIÓN AQUÍ
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
 
 // --- Configuración de la Base de Datos Nedb ---
@@ -106,13 +106,16 @@ async function startBot() {
             phoneNumber: phoneNumber
         });
 
-        sock.ev.once('connection.update', (update) => {
+        // CAMBIO CLAVE AQUÍ: Usamos .on en lugar de .once
+        sock.ev.on('connection.update', (update) => {
             if (update.pairingCode) {
                 console.log(`╔═══════════════════════════`);
                 console.log(`║ 📲 CÓDIGO DE 8 DÍGITOS PARA VINCULAR:`);
                 console.log(`║ ➜  ${update.pairingCode}`);
                 console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
                 console.log(`╚═══════════════════════════`);
+                // Si este listener se dispara múltiples veces, el mensaje se repetirá,
+                // pero no debería afectar la funcionalidad de la sesión.
             }
         });
     }
