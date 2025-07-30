@@ -31,7 +31,8 @@
     "yargs": "^17.7.2",
     "fs": "^0.0.1-security",
     "path": "^0.12.7",
-    "url": "^0.11.3"
+    "url": "^0.11.3",
+    "jimp": "^0.22.8"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
