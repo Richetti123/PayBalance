@@ -5,7 +5,7 @@ import P from 'pino';
 // Aquí importamos makeWASocket y otras utilidades como exportaciones nombradas.
 // Esta es la forma más común y recomendada para @whiskeysockets/baileys.
 import {
-    makeWASocket, // Debería ser la función principal
+    makeWASocket, // Esta debería ser la función ahora
     useMultiFileAuthState,
     makeInMemoryStore,
     PHONENUMBER_MCC,
@@ -49,7 +49,7 @@ const msgRetryCounterCache = new NodeCache();
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
-    const sock = makeWASocket({ // Esta es la llamada que esperamos funcione
+    const sock = makeWASocket({ // ¡Esta es la llamada correcta ahora!
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
@@ -95,9 +95,6 @@ async function startBot() {
             } else if (reason === DisconnectReason.restartRequired) {
                 console.log("Restart Required, Restarting...");
                 startBot();
-            } else if (reason === DisconnectReason.timedOut) {
-                console.log("Connection TimedOut, Reconnecting...");
-                startBot();
             } else {
                 console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
                 startBot();
@@ -113,4 +110,27 @@ async function startBot() {
     sock.ev.on('creds.update', saveCreds);
 
     // --- Manejo de Mensajes Entrantes ---
-    sock.ev.on('messages.upsert', async
+    sock.ev.on('messages.upsert', async (chatUpdate) => {
+        try {
+            const m = chatUpdate.messages[0];
+            if (!m.message) return;
+            if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
+            if (m.key.remoteJid === 'status@broadcast') return;
+
+            m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
+            m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
+
+            global.self = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+
+            const { handler } = await import('./handler.js');
+            await handler(m, sock, store);
+
+        } catch (e) {
+            console.error(e);
+        }
+    });
+
+    return sock;
+}
+
+startBot();
