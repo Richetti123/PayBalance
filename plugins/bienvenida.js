@@ -39,4 +39,4 @@ handler.tags = ['config'];
 handler.command = /^(bienvenida)$/i;
 handler.owner = true;
 
-export default handler;
+export { handler };
