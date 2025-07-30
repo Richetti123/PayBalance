@@ -74,15 +74,21 @@ async function startBot() {
 
     let connectionMethod = null;
 
-    while (connectionMethod === null) {
-        const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
+    // Verificar si ya hay credenciales y si el bot ya está registrado
+    if (state.creds && state.creds.registered === true) {
+        console.log('✅ Credenciales existentes detectadas. Intentando iniciar sesión...');
+        connectionMethod = 'existing'; // No preguntar, intentar reconectar
+    } else {
+        while (connectionMethod === null) {
+            const choice = await question('¿Cómo quieres vincular el bot?\n1. Conexión por código QR\n2. Conexión por código de 8 dígitos\nIngresa 1 o 2: ');
 
-        if (choice === '1') {
-            connectionMethod = 'qr';
-        } else if (choice === '2') {
-            connectionMethod = 'code';
-        } else {
-            console.log('Opción no válida. Por favor, ingresa 1 o 2.');
+            if (choice === '1') {
+                connectionMethod = 'qr';
+            } else if (choice === '2') {
+                connectionMethod = 'code';
+            } else {
+                console.log('Opción no válida. Por favor, ingresa 1 o 2.');
+            }
         }
     }
 
@@ -107,7 +113,7 @@ async function startBot() {
 
     let sock;
 
-    if (connectionMethod === 'qr') {
+    if (connectionMethod === 'qr' || connectionMethod === 'existing') { // Se usa el mismo flujo para QR y Existing
         sock = makeWASocket(authConfig);
     } else { // connectionMethod === 'code'
         sock = makeWASocket({
@@ -116,7 +122,6 @@ async function startBot() {
         });
 
         const rawPhoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
-        
         const phoneNumber = normalizePhoneNumber(rawPhoneNumber);
 
         try {
@@ -153,6 +158,8 @@ async function startBot() {
     sock.ev.on('connection.update', async (update) => {
         const { qr, isNewLogin, lastDisconnect, connection, receivedPendingNotifications } = update;
 
+        console.log('🔄 Estado de conexión actualizado:', { connection, isNewLogin, lastDisconnectError: lastDisconnect?.error?.message });
+
         if (connectionMethod === 'qr' && qr) {
             console.log('QR Code recibido. Escanéalo con tu teléfono.');
         }
@@ -160,41 +167,48 @@ async function startBot() {
         if (connection === 'close') {
             let reason = lastDisconnect?.error ? boomify(lastDisconnect.error)?.output.statusCode : undefined;
 
+            console.log(`🔴 Conexión cerrada. Razón: ${reason}`);
+
             if (reason === DisconnectReason.badSession) {
-                console.log(`Bad Session File, Please Delete 'Richetti' folder and Scan Again.`);
+                console.log(`❌ Sesión corrupta. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
+                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.connectionClosed) {
-                console.log("Connection closed, reconnecting....");
+                console.log("🟡 Conexión cerrada, reconectando....");
                 startBot();
             } else if (reason === DisconnectReason.connectionLost) {
-                console.log("Connection Lost from Server, reconnecting...");
+                console.log("🟠 Conexión perdida con el servidor, reconectando...");
                 startBot();
             } else if (reason === DisconnectReason.connectionReplaced) {
-                console.log("Connection Replaced, Another new session opened, please close current session first");
+                console.log("⚠️ Conexión reemplazada. Otra sesión se abrió. Cierra la sesión actual e intenta de nuevo.");
                 startBot();
             } else if (reason === DisconnectReason.loggedOut) {
-                console.log(`Device Logged Out, Please Delete 'Richetti' folder and Scan Again.`);
+                console.log(`⛔ Sesión cerrada. Por favor, elimina la carpeta 'Richetti' y vuelve a escanear/vincular.`);
+                // fs.rmSync('Richetti', { recursive: true, force: true }); // Descomentar para borrado automático
                 startBot();
             } else if (reason === DisconnectReason.restartRequired) {
-                console.log("Restart Required, Restarting...");
+                console.log("🔄 Reinicio requerido. Reiniciando el bot...");
                 startBot();
             } else {
-                console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
+                console.log(`❓ Razón de desconexión desconocida: ${reason}|${lastDisconnect?.error}`);
                 startBot();
             }
         } else if (connection === 'open') {
-            console.log('Opened connection');
-            // Programar los recordatorios automáticos
+            console.log('✅ Conexión establecida.');
+            if (isNewLogin) {
+                console.log('✨ ¡Nueva sesión iniciada exitosamente!');
+            } else {
+                console.log('✨ Sesión reconectada exitosamente.');
+            }
             sendAutomaticPaymentReminders(sock);
-            // Intervalo para enviar recordatorios cada 24 horas (24 * 60 * 60 * 1000 ms)
             setInterval(() => sendAutomaticPaymentReminders(sock), 24 * 60 * 60 * 1000);
-            rl.close();
+            rl.close(); // Cerrar la interfaz readline una vez conectado
         }
     });
 
     // Diagnóstico: Añadir un log para ver si creds.update se dispara
     sock.ev.on('creds.update', () => {
-        console.log('✅ Credenciales actualizadas/guardadas. Verifique la carpeta "Richetti".');
+        console.log('💾 Credenciales actualizadas/guardadas. Verifique la carpeta "Richetti".');
         saveCreds(); // Asegúrate de que saveCreds se siga llamando
     });
 
@@ -213,7 +227,7 @@ async function startBot() {
             const { handler } = await import('./handler.js');
             await handler(m, sock, store);
         } catch (e) {
-            console.error('Error en messages.upsert:', e);
+            console.error('❌ Error en messages.upsert (posiblemente en handler.js):', e);
         }
     });
 
