@@ -43,5 +43,6 @@
       "pregunta": "¿Puedo pedir un recibo de mi pago?",
       "respuesta": "Sí, si necesitas un recibo oficial de tu pago, por favor solicítalo al propietario del servicio una vez que tu pago haya sido verificado."
     }
-  }
+  },
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón." 
 }
