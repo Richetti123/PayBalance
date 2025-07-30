@@ -1,11 +1,9 @@
-import Boom from '@hapi/boom'; // La importación es correcta
+import Boom from '@hapi/boom';
 import NodeCache from 'node-cache';
 import P from 'pino';
 
-// Aquí importamos makeWASocket y otras utilidades como exportaciones nombradas.
-// Esta es la forma más común y recomendada para @whiskeysockets/baileys.
 import {
-    makeWASocket, // Esta debería ser la función ahora
+    makeWASocket,
     useMultiFileAuthState,
     makeInMemoryStore,
     DisconnectReason,
@@ -17,7 +15,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import util from 'util';
 import Datastore from '@seald-io/nedb';
-import sendAutomaticPaymentReminders from './plugins/recordatorios.js'; // Importación por defecto
+import sendAutomaticPaymentReminders from './plugins/recordatorios.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = join(__filename, '..');
@@ -48,21 +46,13 @@ const msgRetryCounterCache = new NodeCache();
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions'); 
 
-    const sock = makeWASocket({ // ¡Esta es la llamada correcta ahora!
+    const sock = makeWASocket({
         logger: P({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Bot de Cobros', 'Desktop', '3.0'],
-        auth: {
-            creds: state.creds,
-            keys: {
-                preKey: state.keys.preKey,
-                session: state.keys.session,
-                senderKey: state.keys.senderKey,
-                appSyncKey: state.keys.appSyncKey,
-                signedPreKey: state.keys.signedPreKey,
-                signedIdentityKey: state.keys.signedIdentityKey,
-            }
-        },
+        // *** CAMBIO CLAVE AQUÍ: PASAR EL OBJETO 'state' COMPLETO ***
+        auth: state, 
+        // **********************************************************
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false
@@ -75,7 +65,6 @@ async function startBot() {
         const { connection, lastDisconnect, qr } = update;
 
         if (connection === 'close') {
-            // CAMBIO CLAVE AQUÍ: Usamos Boom.boomify para procesar el error existente
             let reason = Boom.boomify(lastDisconnect?.error)?.output?.statusCode; 
             if (reason === DisconnectReason.badSession) { 
                 console.log(`Bad Session File, Please Delete and Scan Again`);
