@@ -92,32 +92,39 @@ async function startBot() {
     if (connectionMethod === 'qr') {
         sock = makeWASocket(authConfig);
     } else { // connectionMethod === 'code'
+        // Creamos el socket sin las opciones de pairingCode y phoneNumber aquí
+        sock = makeWASocket({
+            ...authConfig,
+            qrTimeoutMs: undefined // Mantener esto, es inofensivo aquí
+        });
+
+        // Solicitamos el número de teléfono *después* de que el socket está creado
         const phoneNumber = await question('Por favor, ingresa tu número de teléfono (ej: 5217771234567 sin el +): ');
         if (!phoneNumber || !/^\d+$/.test(phoneNumber)) {
             console.error('Número de teléfono inválido. Reinicia el bot y provee un número válido.');
             rl.close();
             return;
         }
-        
-        sock = makeWASocket({
-            ...authConfig,
-            qrTimeoutMs: undefined,
-            pairingCode: true,
-            phoneNumber: phoneNumber
-        });
 
-        // CAMBIO CLAVE AQUÍ: Usamos .on en lugar de .once
-        sock.ev.on('connection.update', (update) => {
-            if (update.pairingCode) {
-                console.log(`╔═══════════════════════════`);
-                console.log(`║ 📲 CÓDIGO DE 8 DÍGITOS PARA VINCULAR:`);
-                console.log(`║ ➜  ${update.pairingCode}`);
-                console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
-                console.log(`╚═══════════════════════════`);
-                // Si este listener se dispara múltiples veces, el mensaje se repetirá,
-                // pero no debería afectar la funcionalidad de la sesión.
-            }
-        });
+        // Solicitamos el código de emparejamiento explícitamente
+        try {
+            const code = await sock.requestPairingCode(phoneNumber);
+            console.log(`╔═══════════════════════════`);
+            console.log(`║ 📲 CÓDIGO DE 8 DÍGITOS PARA VINCULAR:`);
+            console.log(`║ ➜  ${code}`);
+            console.log(`║ 💡 Abra WhatsApp > Dispositivos vinculados > Vincular un dispositivo > Vincular con número.`);
+            console.log(`╚═══════════════════════════`);
+        } catch (e) {
+            console.error('❌ Error al solicitar el código de emparejamiento:', e.message || e);
+            console.log('Asegúrate de que el número de teléfono sea válido y no tenga el "+".');
+            console.log('También, verifica que tu fork de Baileys soporte requestPairingCode de esta manera.');
+            rl.close();
+            return;
+        }
+
+        // Ya no necesitamos un listener específico para 'connection.update' y pairingCode aquí,
+        // porque requestPairingCode nos da el código directamente.
+        // El listener principal de connection.update manejará los estados 'open'/'close'.
     }
 
     store.bind(sock.ev);
