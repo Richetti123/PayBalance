@@ -410,6 +410,28 @@ export async function handler(m, conn, store) {
                 return;
             } else if (user.chatState === 'active') {
                 try {
+                    // Cargar la configuración actual para buscar la información del FAQ
+                    const currentConfigData = loadConfigBot();
+                    const faqs = currentConfigData.faqs || {};
+                    
+                    const messageTextLower = m.text.toLowerCase();
+
+                    // Lógica para detectar si el usuario pregunta por un precio
+                    if (messageTextLower.includes('precio') || messageTextLower.includes('costo') || messageTextLower.includes('cuanto')) {
+                        const previousMessages = store.messages[m.chat].slice(-2);
+                        const previousBotMessage = previousMessages.find(msg => msg.key.fromMe);
+
+                        if (previousBotMessage) {
+                            const previousText = previousBotMessage.message?.extendedTextMessage?.text.toLowerCase() || '';
+                            const faqKey = Object.keys(faqs).find(key => previousText.includes(faqs[key].pregunta.toLowerCase()) || previousText.includes(faqs[key].respuesta.toLowerCase()));
+
+                            if (faqKey && faqs[faqKey].precio) {
+                                await conn.sendMessage(m.chat, { text: faqs[faqKey].precio }, { quoted: m });
+                                return; 
+                            }
+                        }
+                    }
+
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const chatData = loadChatData();
                     if (!chatData[m.sender]) {
