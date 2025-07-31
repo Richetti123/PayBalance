@@ -56,7 +56,7 @@ const loadConfigBot = () => {
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
         mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?"
+        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
     };
 };
 
@@ -108,7 +108,6 @@ const handleInactivity = async (m, conn, userId) => {
             .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
             .replace(/{bot}/g, conn.user.name || 'Bot');
 
-        const faqsList = Object.values(currentConfigData.faqs || {}); 
         const sections = [{
             title: '❓ Retomar Conversación',
             rows: [{
@@ -135,6 +134,36 @@ const handleInactivity = async (m, conn, userId) => {
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
     }
+};
+
+const sendWelcomeMessage = async (m, conn, isNewUser, isInactive) => {
+    const currentConfigData = loadConfigBot();
+    const welcomeMessage = currentConfigData.chatGreeting
+        .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+        .replace(/{bot}/g, conn.user.name || 'Bot');
+    
+    const faqsList = Object.values(currentConfigData.faqs || {}); 
+    const sections = [{
+        title: '⭐ Nuestros Servicios',
+        rows: faqsList.map((faq) => ({
+            title: faq.pregunta,
+            rowId: `${m.prefix}getfaq ${faq.pregunta}`,
+            description: `Toca para saber más sobre: ${faq.pregunta}`
+        }))
+    }];
+
+    const listMessage = {
+        text: welcomeMessage,
+        footer: 'Toca el botón para ver nuestros servicios.',
+        title: '📚 *Bienvenido/a*',
+        buttonText: 'Ver Servicios',
+        sections
+    };
+    await conn.sendMessage(m.chat, listMessage, { quoted: m });
+    
+    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+        if (err) console.error("Error al actualizar chatState a active:", err);
+    });
 };
 
 export async function handler(m, conn, store) {
@@ -358,31 +387,7 @@ export async function handler(m, conn, store) {
                     break;
                 case 'reactivate_chat':
                     if (!m.isGroup) {
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err, numReplaced) => {
-                            if (err) console.error("Error al actualizar chatState a initial:", err);
-                        });
-                        const currentConfigData = loadConfigBot();
-                        const welcomeMessage = currentConfigData.mensajeBienvenida
-                            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
-                            .replace(/{bot}/g, conn.user.name || 'Bot');
-                        
-                        const faqsList = Object.values(currentConfigData.faqs || {}); 
-                        const sections = [{
-                            title: '⭐ Nuestros Servicios',
-                            rows: faqsList.map((faq, index) => ({
-                                title: `${index + 1}. ${faq.pregunta}`,
-                                rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                                description: `Toca para saber más sobre: ${faq.pregunta}`
-                            }))
-                        }];
-                        const listMessage = {
-                            text: welcomeMessage,
-                            footer: 'Toca el botón para ver nuestros servicios.',
-                            title: '📚 *Bienvenido/a*',
-                            buttonText: 'Ver Servicios',
-                            sections
-                        };
-                        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                        await sendWelcomeMessage(m, conn, false, false);
                     }
                     break;
             }
@@ -391,45 +396,18 @@ export async function handler(m, conn, store) {
         
         // Manejar mensajes que no son comandos (Lógica de Asistente Virtual)
         if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
-            // Lógica para detectar solicitud de contacto con el owner/admin
             const ownerKeywords = ['admin', 'owner', 'vendedor', 'richetti', 'creador', 'dueño', 'administrador'];
             const messageTextLower = m.text.toLowerCase();
             const contactOwnerRequest = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
             if (contactOwnerRequest) {
                 await notificarOwnerHandler(m, { conn });
-                return; // Evitar que el bot continúe con la lógica del AI
+                return;
             }
 
             if (user.chatState === 'initial' || isNewUser || isInactive) {
-                const currentConfigData = loadConfigBot();
-                const welcomeMessage = currentConfigData.chatGreeting
-                    .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
-                    .replace(/{bot}/g, conn.user.name || 'Bot');
-                
-                const faqsList = Object.values(currentConfigData.faqs || {}); 
-                const sections = [{
-                    title: '⭐ Nuestros Servicios',
-                    rows: faqsList.map((faq) => ({
-                        title: faq.pregunta,
-                        rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                        description: `Toca para saber más sobre: ${faq.pregunta}`
-                    }))
-                }];
-
-                const listMessage = {
-                    text: welcomeMessage,
-                    footer: 'Toca el botón para ver nuestros servicios.',
-                    title: '📚 *Bienvenido/a*',
-                    buttonText: 'Ver Servicios',
-                    sections
-                };
-                await conn.sendMessage(m.chat, listMessage, { quoted: m });
-                
-                global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                    if (err) console.error("Error al actualizar chatState a active:", err);
-                });
-                
+                await sendWelcomeMessage(m, conn, isNewUser, isInactive);
+                return;
             } else if (user.chatState === 'active') {
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -475,7 +453,7 @@ export async function handler(m, conn, store) {
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                     
-                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte" o similares. Ve directo al punto y sé conciso.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte" o similares. Ve directo al punto y sé conciso.
 
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
@@ -496,7 +474,7 @@ export async function handler(m, conn, store) {
                     
                     Ejemplo de interacción:
                     Usuario: Hola
-                    Tú: Hola ¿En qué puedo ayudarte?
+                    Tú: Hola soy CashFlow, tu asistente virtual. ¿En qué puedo ayudarte?
                     Usuario: Mi nombre es Juan y necesito ayuda con mi pago
                     Tú: ¡Hola Juan! Con gusto te ayudo. ¿Cuál es tu duda?`;
                     
