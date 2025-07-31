@@ -25,15 +25,14 @@ export async function handler(m, { conn, text }) {
 
     if (faqKey) {
         const faq = faqs[faqKey];
-        const faqMessage = faq.respuesta;
+        const faqResponse = faq.respuesta;
         const faqPrice = faq.precio;
 
         // Responder con la descripción del servicio
-        await conn.sendMessage(m.chat, { text: faqMessage }, { quoted: m });
+        await conn.sendMessage(m.chat, { text: faqResponse }, { quoted: m });
 
-        // Si la pregunta del usuario incluye "precio" o "costo", responder también con el precio
-        const userTextLower = m.text.toLowerCase();
-        if (userTextLower.includes('precio') || userTextLower.includes('costo') || userTextLower.includes('cuanto')) {
+        // Responder con el precio en un mensaje separado
+        if (faqPrice) {
             await conn.sendMessage(m.chat, { text: faqPrice }, { quoted: m });
         }
     } else {
