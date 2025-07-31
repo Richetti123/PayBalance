@@ -44,5 +44,6 @@
       "respuesta": "Sí, si necesitas un recibo oficial de tu pago, por favor solicítalo al propietario del servicio una vez que tu pago haya sido verificado."
     }
   },
-  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón." 
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+  "chatGreeting": "¡Hola! He recibido tu consulta. Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta? A partir de ahora puedes hacerme cualquier pregunta."
 }
