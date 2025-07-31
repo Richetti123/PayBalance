@@ -368,27 +368,29 @@ export async function handler(m, conn, store) {
                         
                         const faqsList = Object.values(currentConfigData.faqs || {}); 
                         const sections = [{
-                            title: '❓ Preguntas Frecuentes',
+                            title: '⭐ Nuestros Servicios',
                             rows: faqsList.map((faq, index) => ({
                                 title: `${index + 1}. ${faq.pregunta}`,
                                 rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                                description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
+                                description: `Toca para saber más sobre: ${faq.pregunta}`
                             }))
                         }];
                         const listMessage = {
                             text: welcomeMessage,
-                            footer: 'Toca el botón para ver las preguntas frecuentes.',
+                            footer: 'Toca el botón para ver nuestros servicios.',
                             title: '📚 *Bienvenido/a*',
-                            buttonText: 'Ver Preguntas Frecuentes',
+                            buttonText: 'Ver Servicios',
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
                     }
                     break;
             }
+            return; // Detener la ejecución si se procesó un comando
         }
+        
         // Manejar mensajes que no son comandos (Lógica de Asistente Virtual)
-        else if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
+        if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
             // Lógica para detectar solicitud de contacto con el owner/admin
             const ownerKeywords = ['admin', 'owner', 'vendedor', 'richetti', 'creador', 'dueño', 'administrador'];
             const messageTextLower = m.text.toLowerCase();
@@ -473,11 +475,11 @@ export async function handler(m, conn, store) {
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                     
-                    const personaPrompt = `Eres CashFlow, un asistente virtual amable, servicial y profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes y clientes potenciales con consultas sobre pagos, servicios de bot de WhatsApp y de gestión de clientes.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte" o similares. Ve directo al punto y sé conciso.
 
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
-                    - Si te preguntan por métodos de pago, puedes usar esta lista: ${methodsList}
+                    - Si te preguntan por métodos de pago, usa esta lista: ${methodsList}
                     - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
                     - No proporciones información personal ni financiera sensible.
                     - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
@@ -494,9 +496,9 @@ export async function handler(m, conn, store) {
                     
                     Ejemplo de interacción:
                     Usuario: Hola
-                    Tú: Hola soy CashFlow, un asistente virtual que está aquí para ayudarte de la mejor manera posible. ¿Podrías brindarme tu nombre y el motivo de tu consulta?
+                    Tú: Hola ¿En qué puedo ayudarte?
                     Usuario: Mi nombre es Juan y necesito ayuda con mi pago
-                    Tú: ¡Hola Juan! Con gusto te ayudo. Por favor, dime cuál es tu duda.`;
+                    Tú: ¡Hola Juan! Con gusto te ayudo. ¿Cuál es tu duda?`;
                     
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
