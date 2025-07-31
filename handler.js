@@ -298,7 +298,7 @@ export async function handler(m, conn, store) {
                 break;
             case 'historialpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 1): 0)).trim(), command: m.command, usedPrefix: prefix });
+                await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
             case 'pagosmes':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
