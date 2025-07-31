@@ -9,27 +9,30 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
-import { handler as clienteHandler } from './plugins/cliente.js'; // Para .cliente, .vercliente, .editarcliente, .eliminarcliente
-import { handler as historialPagosHandler } from './plugins/historialpagos.js'; // Para .historialpagos
-import { handler as pagosMesHandler } from './plugins/pagosmes.js'; // Para .pagosmes
-import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js'; 
-import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js'; // Para .recordatoriolote
-import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js'; // Para .suspendercliente, .activarcliente
-import { handler as modoPagoHandler } from './plugins/modopago.js'; // Para .modopago
-import { handler as estadoBotHandler } from './plugins/estadobot.js'; // Para .estadobot
-import { handler as bienvenidaHandler } from './plugins/bienvenida.js'; // Para .bienvenida
-import { handler as despedidaHandler } from './plugins/despedida.js'; // Para .despedida
-import { handler as derivadosHandler } from './plugins/derivados.js'; // Para .derivados
-import { handler as ayudaHandler } from './plugins/comandos.js'; // Para .ayuda o .comandos
-import { handler as faqHandler } from './plugins/faq.js'; // Para .faq y .eliminarfaq
-import { handler as getfaqHandler } from './lib/getfaq.js'; // Para .getfaq (comando interno para FAQs)
-import { handler as importarPagosHandler } from './plugins/importarpagos.js'; // Para .importarpagos
+import { handler as clienteHandler } from './plugins/cliente.js';
+import { handler as historialPagosHandler } from './plugins/historialpagos.js';
+import { handler as pagosMesHandler } from './plugins/pagosmes.js';
+import { handler as pagosAtrasadosHandler } from './plugins/pagosatrasados.js';
+import { handler as recordatorioLoteHandler } from './plugins/recordatoriolote.js';
+import { handler as suspenderActivarHandler } from './plugins/suspenderactivar.js';
+import { handler as modoPagoHandler } from './plugins/modopago.js';
+import { handler as estadoBotHandler } from './plugins/estadobot.js';
+import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
+import { handler as despedidaHandler } from './plugins/despedida.js';
+import { handler as derivadosHandler } from './plugins/derivados.js';
+import { handler as ayudaHandler } from './plugins/comandos.js';
+import { handler as faqHandler } from './plugins/faq.js';
+import { handler as getfaqHandler } from './lib/getfaq.js';
+import { handler as importarPagosHandler } from './plugins/importarpagos.js';
+import { handler as resetHandler } from './plugins/reset.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Define el JID del propietario del bot para notificaciones urgentes
 const BOT_OWNER_JID = '5217771303481@s.whatsapp.net';
+const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos en milisegundos
+
+const inactivityTimers = {}; // Para guardar los temporizadores de cada chat
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
@@ -37,27 +40,77 @@ const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function (
     resolve();
 }, ms));
 
-// --- FUNCIONES PARA CARGAR/GUARDAR CONFIGBOT.JSON ---
-const configBotPath = path.join(__dirname, 'src', 'configbot.json'); // Ruta a configbot.json
+const configBotPath = path.join(__dirname, 'src', 'configbot.json');
+const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
+const chatDataPath = path.join(__dirname, 'src', 'chat_data.json');
 
 const loadConfigBot = () => {
     if (fs.existsSync(configBotPath)) {
         return JSON.parse(fs.readFileSync(configBotPath, 'utf8'));
     }
-    // Retorna una configuración por defecto si el archivo no existe
     return {
         modoPagoActivo: false,
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón." 
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "¡Hola! He recibido tu consulta. Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta? A partir de ahora puedes hacerme cualquier pregunta."
     };
 };
 
 const saveConfigBot = (config) => {
     fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
 };
-// --- FIN FUNCIONES CONFIGBOT.JSON ---
+
+const loadChatData = () => {
+    if (fs.existsSync(chatDataPath)) {
+        return JSON.parse(fs.readFileSync(chatDataPath, 'utf8'));
+    }
+    return {};
+};
+
+const saveChatData = (data) => {
+    fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
+};
+
+/**
+ * Función para manejar la inactividad y enviar el mensaje de despedida
+ */
+const handleInactivity = async (m, conn, userId) => {
+    try {
+        const currentConfigData = loadConfigBot();
+        const farewellMessage = currentConfigData.mensajeDespedidaInactividad
+            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+            .replace(/{bot}/g, conn.user.name || 'Bot');
+
+        const faqsList = Object.values(currentConfigData.faqs || {}); 
+        const sections = [{
+            title: '❓ Retomar Conversación',
+            rows: [{
+                title: '➡️ Reactivar Chat',
+                rowId: `${m.prefix}reactivate_chat`,
+                description: 'Pulsa aquí para iniciar una nueva conversación.'
+            }]
+        }];
+        
+        const listMessage = {
+            text: farewellMessage,
+            footer: 'Toca el botón para reactivar la conversación.',
+            title: '👋 *Hasta Pronto*',
+            buttonText: 'Retomar Conversación',
+            sections
+        };
+        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+
+        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+            if (err) console.error("Error al actualizar chatState a initial:", err);
+        });
+        delete inactivityTimers[userId];
+        
+    } catch (e) {
+        console.error('Error al enviar mensaje de inactividad:', e);
+    }
+};
 
 /**
  * Handle messages upsert
@@ -75,20 +128,15 @@ export async function handler(m, conn, store) {
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
 
-        // --- INICIO: Bloque para logging visual de mensajes recibidos ---
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
-        
-        senderJid = String(senderJid);      
-
+        senderJid = String(senderJid);
         let senderNumber = 'Desconocido';
-        let senderName = m.pushName || 'Desconocido'; // Nombre del usuario
-
+        let senderName = m.pushName || 'Desconocido';
         if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
-            senderNumber = senderJid.split('@')[0];     
+            senderNumber = senderJid.split('@')[0];
         } else {
-            console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'. No se pudo determinar el número de remitente.`);
+            console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'.`);
         }
-        
         let groupName = 'Chat Privado';
         if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) {
             try {
@@ -99,26 +147,22 @@ export async function handler(m, conn, store) {
                 groupName = 'Grupo (Error)';
             }
         }
-        
         const messageType = Object.keys(m.message || {})[0];
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
         const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
-
-        // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
         console.log(
             chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
             chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
             chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
             chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +    
+            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
             chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
             chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`${rawText || ' (Sin texto legible) '}`)
         );
-        // --- FIN: Bloque para logging visual ---
 
-        m = smsg(conn, m);      
+        m = smsg(conn, m);
 
         if (!m.sender) {
             console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
@@ -132,19 +176,21 @@ export async function handler(m, conn, store) {
             });
         });
 
-        // --- Lógica de Bienvenida y FAQs para nuevos usuarios ---
-        let currentConfigData = loadConfigBot(); // Cargar la configuración actual
+        // Lógica de bienvenida para usuarios nuevos o inactivos (45 minutos)
+        const now = new Date() * 1;
+        const lastSeenThreshold = 45 * 60 * 1000;
+        const isNewUser = !userDoc;
+        const isInactive = userDoc && (now - userDoc.lastseen > lastSeenThreshold);
 
-        if (!userDoc) {
-            // Si el usuario es nuevo, inicializarlo
+        if (isNewUser) {
             userDoc = {
                 id: m.sender,
                 awaitingPaymentResponse: false,
                 paymentClientName: '',
                 paymentClientNumber: '',
-                lastseen: new Date() * 1, // Para registrar la última vez que se vio
-                registered: false, // Puedes usar esto si tienes un comando de registro formal
-                // ... otras propiedades que tengas en tus usuarios
+                lastseen: now,
+                chatState: 'initial',
+                registered: false,
             };
             await new Promise((resolve, reject) => {
                 global.db.data.users.insert(userDoc, (err, newDoc) => {
@@ -152,13 +198,25 @@ export async function handler(m, conn, store) {
                     resolve(newDoc);
                 });
             });
+        } else {
+            global.db.data.users.update({ id: m.sender }, { $set: { lastseen: now } }, {}, (err, numReplaced) => {
+                if (err) console.error("Error al actualizar lastseen:", err);
+            });
         }
-        // Actualizar lastseen para usuarios existentes (o para el recién creado)
-        global.db.data.users.update({ id: m.sender }, { $set: { lastseen: new Date() * 1 } }, {}, (err, numReplaced) => {
-            if (err) console.error("Error al actualizar lastseen:", err);
-        });
-        const user = userDoc; // Usar el documento de usuario (existente o recién creado)
-        // --- FIN Lógica de Bienvenida y FAQs ---
+        const user = userDoc;
+
+        // Limpiar temporizador de inactividad si existe
+        if (inactivityTimers[m.sender]) {
+            clearTimeout(inactivityTimers[m.sender]);
+            delete inactivityTimers[m.sender];
+        }
+
+        // Si el mensaje no es un comando, iniciar el temporizador
+        if (!m.isCmd && m.text) {
+             inactivityTimers[m.sender] = setTimeout(() => {
+                handleInactivity(m, conn, m.sender);
+            }, INACTIVITY_TIMEOUT_MS);
+        }
 
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
@@ -173,152 +231,150 @@ export async function handler(m, conn, store) {
             if (handledMedia) return;
         }
 
-        const prefix = m.prefix;      
+        const prefix = m.prefix;
 
         switch (m.command) {
+            // ... (Tus comandos de administración y otras funciones) ...
             case 'registrarpago':
-            case 'agregarcliente': // Esto es un alias para el comando de un solo cliente
+            case 'agregarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                 await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            case 'agregarclientes': // Comando para añadir en lote
-            case 'registrarlote': // Alias para el comando de añadir en lote
+            case 'agregarclientes':
+            case 'registrarlote':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
                 await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            case 'recibo': // Nuevo comando para enviar recibos/cobros puntuales
+            case 'recibo':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: enviarReciboHandler } = await import('./plugins/enviarrecibo.js');
                 await enviarReciboHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'recordatorio':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 const { handler: recordatorioHandler } = await import('./plugins/recordatorios.js');
                 await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-            
             case 'clientes':
             case 'listarpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
                 if (fs.existsSync(paymentsFilePath)) {
                     const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     let clientList = '📊 *Lista de Clientes y Pagos:*\n\n';
                     for (const num in clientsData) {
                         const client = clientsData[num];
-                        clientList += `*👤 Nombre:* ${client.nombre}\n`;
-                        clientList += `*📞 Número:* ${num.replace('@s.whatsapp.net', '')}\n`; // Mostrar solo el número, no el JID completo
-                        clientList += `*🗓️ Día de Pago:* ${client.diaPago}\n`;
-                        clientList += `*💰 Monto:* ${client.monto}\n`;
-                        clientList += `*🌎 Bandera:* ${client.bandera}\n`;
-                        clientList += `*• Estado:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n`; // Añadir estado
-                        clientList += '----------------------------\n';
+                        clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num.replace('@s.whatsapp.net', '')}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${client.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n----------------------------\n`;
                     }
-                    if (Object.keys(clientsData).length === 0) {
-                        clientList = '❌ No hay clientes registrados en la base de datos de pagos.';
-                    }
+                    if (Object.keys(clientsData).length === 0) clientList = '❌ No hay clientes registrados.';
                     await conn.sendMessage(m.chat, { text: clientList }, { quoted: m });
                 } else {
                     await conn.sendMessage(m.chat, { text: '❌ El archivo `pagos.json` no se encontró. No hay clientes registrados.' }, { quoted: m });
                 }
                 break;
-
-            // --- NUEVOS COMANDOS INTEGRADOS ---
-
-            case 'cliente':
-            case 'vercliente':
-            case 'editarcliente':
-            case 'eliminarcliente': // Ahora este comando solo lo maneja 'cliente.js'
+            case 'cliente': case 'vercliente': case 'editarcliente': case 'eliminarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await clienteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                 break;
-
             case 'historialpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'pagosmes':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await pagosMesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'pagosatrasados':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await pagosAtrasadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'recordatoriolote':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await recordatorioLoteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-            
-            case 'suspendercliente':
-            case 'activarcliente':
+            case 'suspendercliente': case 'activarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await suspenderActivarHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'modopago':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await modoPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                await modoPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                 break;
-
             case 'estadobot':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await estadoBotHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
             case 'bienvenida':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await bienvenidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                await bienvenidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                 break;
-
             case 'despedida':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await despedidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData, saveConfigBot });
+                await despedidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                 break;
-
             case 'derivados':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await derivadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            case 'ayuda':
-            case 'comandos':
+            case 'ayuda': case 'comandos':
                 await ayudaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-            
-            case 'faq':
-            case 'eliminarfaq':
+            case 'faq': case 'eliminarfaq':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-            
-            case 'getfaq': // Este es un comando interno, no se usa con prefijo directamente por el usuario
+            case 'getfaq':
                 await getfaqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
-
-            case 'importarpagos': // Nuevo comando para importar datos de pagos
+            case 'importarpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                 await importarPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                 break;
-
-            // --- INICIO: Lógica del chatbot con mensaje de bienvenida en cada interacción (no en grupos) ---
-            default:
-                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isGroup) {
-                    let currentConfigData = loadConfigBot(); // Vuelve a cargar la configuración para asegurar que esté actualizada
+            case 'reset':
+                await resetHandler(m, { conn, text: m.text, command: m.command, usedPrefix: prefix });
+                break;
+            // Nuevo comando para reactivar chat (usado por el botón)
+            case 'reactivate_chat':
+                if (!m.isGroup) {
+                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err, numReplaced) => {
+                        if (err) console.error("Error al actualizar chatState a initial:", err);
+                    });
+                    const currentConfigData = loadConfigBot();
                     const welcomeMessage = currentConfigData.mensajeBienvenida
                         .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
                         .replace(/{bot}/g, conn.user.name || 'Bot');
                     
                     const faqsList = Object.values(currentConfigData.faqs || {}); 
-                    if (faqsList.length > 0) {
+                    const sections = [{
+                        title: '❓ Preguntas Frecuentes',
+                        rows: faqsList.map((faq, index) => ({
+                            title: `${index + 1}. ${faq.pregunta}`,
+                            rowId: `${m.prefix}getfaq ${faq.pregunta}`,
+                            description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
+                        }))
+                    }];
+                    const listMessage = {
+                        text: welcomeMessage,
+                        footer: 'Toca el botón para ver las preguntas frecuentes.',
+                        title: '📚 *Bienvenido/a*',
+                        buttonText: 'Ver Preguntas Frecuentes',
+                        sections
+                    };
+                    await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                }
+                break;
+            default:
+                // Se ejecuta solo si no es un comando y en chats privados
+                if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isGroup) {
+                    
+                    if (user.chatState === 'initial') {
+                        const currentConfigData = loadConfigBot();
+                        const welcomeMessage = currentConfigData.mensajeBienvenida
+                            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+                            .replace(/{bot}/g, conn.user.name || 'Bot');
+                        
+                        const faqsList = Object.values(currentConfigData.faqs || {}); 
                         const sections = [{
                             title: '❓ Preguntas Frecuentes',
                             rows: faqsList.map((faq, index) => ({
@@ -336,20 +392,79 @@ export async function handler(m, conn, store) {
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
-                    } else {
-                        await m.reply(welcomeMessage); 
+                        
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+                            if (err) console.error("Error al actualizar chatState a active:", err);
+                        });
+                        
+                    } else if (user.chatState === 'active') {
+                        try {
+                            const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+                            const chatData = loadChatData();
+                            const userData = chatData[m.sender] || {};
+                            const isClient = !!paymentsData[m.sender];
+                            const clientDetails = isClient ? paymentsData[m.sender] : null;
+
+                            const methods = `*Métodos de pago:*
+                                *MEX:* Bancos (BBVA, Banorte, Santander), Oxxo, SPEI.
+                                *PERU:* Bancos (BCP, Interbank), Yape, Plin.
+                                *CHILE:* Bancos (BCI, BancoEstado), MACH.
+                                *ARGENTINA:* Mercado Pago, Ualá.
+                                *COLOMBIA:* Bancos (Bancolombia, Davivienda), Nequi, Daviplata.
+                                (Pregúntale a tu proveedor de servicio para más detalles de su país específico)`;
+
+                            const clientInfoPrompt = isClient ?
+                                `El usuario es un cliente existente con los siguientes detalles: Nombre: ${clientDetails.nombre}, Día de pago: ${clientDetails.diaPago}, Monto: ${clientDetails.monto}, Bandera: ${clientDetails.bandera}. Su estado es ${clientDetails.suspendido ? 'suspendido' : 'activo'}.` :
+                                `El usuario no es un cliente existente. Es un cliente potencial.`;
+
+                            const historicalChatPrompt = Object.keys(userData).length > 0 ?
+                                `Datos previos de la conversación con este usuario: ${JSON.stringify(userData)}.` :
+                                `No hay datos previos de conversación con este usuario.`;
+                            
+                            const personaPrompt = `Eres Richetti, un asistente virtual amable, servicial y profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes y clientes potenciales con consultas sobre pagos y servicios de Richetti.
+
+                            Instrucciones:
+                            - Responde de forma concisa, útil y profesional.
+                            - Si te preguntan por métodos de pago, puedes usar esta lista: ${methods}
+                            - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
+                            - No proporciones información personal ni financiera sensible.
+                            - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
+                            ${clientInfoPrompt}
+                            ${historicalChatPrompt}
+                            - Si el usuario te proporciona datos como su nombre completo, correo electrónico o la razón de su consulta, guárdalos internamente para usarlos en el contexto de esta conversación.
+                            
+                            Ejemplo de interacción:
+                            Usuario: Hola
+                            Tú: ¡Hola! Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta?
+                            Usuario: Mi nombre es Juan y necesito ayuda con mi pago
+                            Tú: ¡Hola Juan! Con gusto te ayudo. Por favor, dime cuál es tu duda.`;
+                            
+                            const encodedContent = encodeURIComponent(personaPrompt);
+                            const encodedText = encodeURIComponent(m.text);
+                            const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
+                            const res = await apiii.json();
+
+                            if (res.content) { 
+                                const aiResponse = res.content;
+                                await m.reply(aiResponse);
+                            } else {
+                                console.log('Chatbot API no devolvió una respuesta válida:', res);
+                                await m.reply('❌ Lo siento, no pude procesar tu solicitud en este momento. Por favor, intenta de nuevo más tarde.');
+                            }
+                        } catch (e) {
+                            console.error('Error en el Asistente Virtual:', e);
+                            await m.reply('❌ Lo siento, ocurrió un error inesperado al intentar ayudarte. Por favor, intenta de nuevo más tarde.');
+                        }
                     }
+                    return;
                 }
                 break;
-            // --- FIN: Lógica del chatbot con mensaje de bienvenida en cada interacción ---
         }
-
     } catch (e) {
         console.error('Error en handler:', e);
     }
 }
 
-// Recarga de módulos en caso de cambios
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
     unwatchFile(file);
