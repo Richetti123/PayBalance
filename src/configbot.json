@@ -3,47 +3,23 @@
   "mensajeBienvenida": "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
   "mensajeDespedida": "¡Hasta pronto! Esperamos verte de nuevo.",
   "faqs": {
-    "¿cómo hago un pago?": {
-      "pregunta": "¿Cómo hago un pago?",
-      "respuesta": "Para realizar un pago, sigue las instrucciones que te ha proporcionado el propietario del servicio. Si necesitas el método de pago, puedes solicitarlo directamente."
+    "MichiBot exclusivo (pago mensual)": {
+      "pregunta": "¿Qué es MichiBot exclusivo (pago mensual)?",
+      "respuesta": "MichiBot es un bot de WhatsApp con gestión de grupos, descargas de redes sociales (Instagram, Facebook, TikTok, YouTube), inteligencia artificial (ChatGPT o Gemini), stickers y más de 305 comandos. El costo es de 10 soles peruanos, 3 mil pesos argentinos, 3 mil pesos chilenos, 80 pesos mexicanos, o 3 dólares."
     },
-    "¿dónde envío mi comprobante?": {
-      "pregunta": "¿Dónde envío mi comprobante?",
-      "respuesta": "Puedes enviar tu comprobante de pago directamente a este chat. Asegúrate de que la imagen o documento sea clara y contenga toda la información relevante para la verificación."
+    "Bot personalizado (pago mensual)": {
+      "pregunta": "¿Qué es un Bot personalizado (pago mensual)?",
+      "respuesta": "Es un bot de WhatsApp similar a MichiBot, pero completamente personalizado con tus datos: foto/logo, redes sociales, canal de WhatsApp, etiquetas generales y nombre del bot. El costo es de 28 soles peruanos, 8 mil pesos argentinos, 8 mil pesos chilenos, 180 pesos mexicanos, o 8 dólares."
     },
-    "¿recibí un recordatorio de pago, qué hago?": {
-      "pregunta": "¿Recibí un recordatorio de pago, qué hago?",
-      "respuesta": "Si recibiste un recordatorio, significa que tu pago está pendiente o próximo a vencer. Por favor, realiza el pago y envía tu comprobante lo antes posible para evitar interrupciones en tu servicio."
+    "Bot personalizado (único pago)": {
+      "pregunta": "¿Qué es un Bot personalizado (único pago)?",
+      "respuesta": "Es un bot de WhatsApp personalizado con tus datos, similar a la versión de pago mensual, pero con un único pago. El costo es de 20 soles peruanos, 6 mil pesos argentinos, 6 mil pesos chilenos, 120 pesos mexicanos, o 6 dólares."
     },
-    "¿cuál es mi fecha de corte?": {
-      "pregunta": "¿Cuál es mi fecha de corte?",
-      "respuesta": "Tu fecha de corte es el día en que tu servicio necesita ser renovado o pagado. Esta información la gestiona el propietario. Si no la conoces, puedes contactarlo directamente."
-    },
-    "¿puedo cambiar mi día de pago?": {
-      "pregunta": "¿Puedo cambiar mi día de pago?",
-      "respuesta": "Los cambios en los días de pago deben ser coordinados con el propietario del servicio. Ponte en contacto con él para discutir esta posibilidad."
-    },
-    "¿qué hago si mi servicio fue suspendido?": {
-      "pregunta": "¿Qué hago si mi servicio fue suspendido?",
-      "respuesta": "Si tu servicio ha sido suspendido, es probable que se deba a un pago pendiente. Realiza tu pago y envía el comprobante para que el propietario pueda reactivar tu servicio lo antes posible."
-    },
-    "¿el bot guarda mis datos de pago?": {
-      "pregunta": "¿El bot guarda mis datos de pago?",
-      "respuesta": "El bot procesa y notifica sobre los estados de pago, pero no almacena directamente tus datos bancarios o información financiera sensible. Es una herramienta para facilitar la comunicación con el propietario del servicio."
-    },
-    "¿con quién puedo hablar si tengo un problema?": {
-      "pregunta": "¿Con quién puedo hablar si tengo un problema?",
-      "respuesta": "Si tienes un problema o una consulta específica que el bot no puede resolver, por favor contacta directamente al propietario del servicio. Él te brindará la asistencia necesaria."
-    },
-    "¿cuáles son los métodos de pago?": {
-      "pregunta": "¿Cuáles son los métodos de pago?",
-      "respuesta": "Los métodos de pago disponibles pueden variar según tu ubicación (México, Perú, Chile, Argentina, etc.). Para conocer las opciones específicas, por favor, contacta directamente al propietario del servicio."
-    },
-    "¿puedo pedir un recibo de mi pago?": {
-      "pregunta": "¿Puedo pedir un recibo de mi pago?",
-      "respuesta": "Sí, si necesitas un recibo oficial de tu pago, por favor solicítalo al propietario del servicio una vez que tu pago haya sido verificado."
+    "CashFlow": {
+      "pregunta": "¿Qué es CashFlow?",
+      "respuesta": "CashFlow es un bot de gestión de clientes diseñado para facilitar el seguimiento de pagos, enviar recordatorios automáticos y administrar tus clientes de manera eficiente. El costo es de 5 soles peruanos, 1500 pesos argentinos, 1500 pesos chilenos, 40 pesos mexicanos, o 1.5 dólares."
     }
   },
-  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-  "chatGreeting": "¡Hola! He recibido tu consulta. Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta? A partir de ahora puedes hacerme cualquier pregunta."
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+  "chatGreeting": "Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?"
 }
