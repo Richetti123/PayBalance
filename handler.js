@@ -25,6 +25,7 @@ import { handler as faqHandler } from './plugins/faq.js';
 import { handler as getfaqHandler } from './lib/getfaq.js';
 import { handler as importarPagosHandler } from './plugins/importarpagos.js';
 import { handler as resetHandler } from './plugins/reset.js';
+import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -140,7 +141,6 @@ export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return; 
 
-    // Ejecutar la función de reinicio al arrancar
     if (!hasResetOnStartup) {
         await resetAllChatStatesOnStartup();
     }
@@ -368,18 +368,18 @@ export async function handler(m, conn, store) {
                         
                         const faqsList = Object.values(currentConfigData.faqs || {}); 
                         const sections = [{
-                            title: '⭐ Nuestros Servicios',
+                            title: '❓ Preguntas Frecuentes',
                             rows: faqsList.map((faq, index) => ({
                                 title: `${index + 1}. ${faq.pregunta}`,
                                 rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                                description: `Toca para saber más sobre: ${faq.pregunta}`
+                                description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
                             }))
                         }];
                         const listMessage = {
                             text: welcomeMessage,
-                            footer: 'Toca el botón para ver nuestros servicios.',
+                            footer: 'Toca el botón para ver las preguntas frecuentes.',
                             title: '📚 *Bienvenido/a*',
-                            buttonText: 'Ver Servicios',
+                            buttonText: 'Ver Preguntas Frecuentes',
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
@@ -387,8 +387,18 @@ export async function handler(m, conn, store) {
                     break;
             }
         }
-        // Manejar mensajes que no son comandos
+        // Manejar mensajes que no son comandos (Lógica de Asistente Virtual)
         else if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
+            // Lógica para detectar solicitud de contacto con el owner/admin
+            const ownerKeywords = ['admin', 'owner', 'vendedor', 'richetti', 'creador', 'dueño', 'administrador'];
+            const messageTextLower = m.text.toLowerCase();
+            const contactOwnerRequest = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
+
+            if (contactOwnerRequest) {
+                await notificarOwnerHandler(m, { conn });
+                return; // Evitar que el bot continúe con la lógica del AI
+            }
+
             if (user.chatState === 'initial' || isNewUser || isInactive) {
                 const currentConfigData = loadConfigBot();
                 const welcomeMessage = currentConfigData.chatGreeting
@@ -484,7 +494,7 @@ export async function handler(m, conn, store) {
                     
                     Ejemplo de interacción:
                     Usuario: Hola
-                    Tú: Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?
+                    Tú: Hola soy CashFlow, un asistente virtual que está aquí para ayudarte de la mejor manera posible. ¿Podrías brindarme tu nombre y el motivo de tu consulta?
                     Usuario: Mi nombre es Juan y necesito ayuda con mi pago
                     Tú: ¡Hola Juan! Con gusto te ayudo. Por favor, dime cuál es tu duda.`;
                     
