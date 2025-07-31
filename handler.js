@@ -30,9 +30,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const BOT_OWNER_JID = '5217771303481@s.whatsapp.net';
-const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutos en milisegundos
+const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
 
-const inactivityTimers = {}; // Para guardar los temporizadores de cada chat
+const inactivityTimers = {};
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
@@ -53,8 +53,8 @@ const loadConfigBot = () => {
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente Richetti. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "¡Hola! He recibido tu consulta. Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta? A partir de ahora puedes hacerme cualquier pregunta."
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?"
     };
 };
 
@@ -73,9 +73,6 @@ const saveChatData = (data) => {
     fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
-/**
- * Función para manejar la inactividad y enviar el mensaje de despedida
- */
 const handleInactivity = async (m, conn, userId) => {
     try {
         const currentConfigData = loadConfigBot();
@@ -112,12 +109,6 @@ const handleInactivity = async (m, conn, userId) => {
     }
 };
 
-/**
- * Handle messages upsert
- * @param {import('@whiskeysockets/baileys').WAMessage} m
- * @param {import('@whiskeysockets/baileys').WASocket} conn
- * @param {import('@whiskeysockets/baileys').InMemoryStore} store
- */
 export async function handler(m, conn, store) {
     if (!m) return;
 
@@ -176,7 +167,6 @@ export async function handler(m, conn, store) {
             });
         });
 
-        // Lógica de bienvenida para usuarios nuevos o inactivos (45 minutos)
         const now = new Date() * 1;
         const lastSeenThreshold = 45 * 60 * 1000;
         const isNewUser = !userDoc;
@@ -205,13 +195,11 @@ export async function handler(m, conn, store) {
         }
         const user = userDoc;
 
-        // Limpiar temporizador de inactividad si existe
         if (inactivityTimers[m.sender]) {
             clearTimeout(inactivityTimers[m.sender]);
             delete inactivityTimers[m.sender];
         }
 
-        // Si el mensaje no es un comando, iniciar el temporizador
         if (!m.isCmd && m.text) {
              inactivityTimers[m.sender] = setTimeout(() => {
                 handleInactivity(m, conn, m.sender);
@@ -234,7 +222,6 @@ export async function handler(m, conn, store) {
         const prefix = m.prefix;
 
         switch (m.command) {
-            // ... (Tus comandos de administración y otras funciones) ...
             case 'registrarpago':
             case 'agregarcliente':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -334,7 +321,6 @@ export async function handler(m, conn, store) {
             case 'reset':
                 await resetHandler(m, { conn, text: m.text, command: m.command, usedPrefix: prefix });
                 break;
-            // Nuevo comando para reactivar chat (usado por el botón)
             case 'reactivate_chat':
                 if (!m.isGroup) {
                     global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err, numReplaced) => {
@@ -365,10 +351,9 @@ export async function handler(m, conn, store) {
                 }
                 break;
             default:
-                // Se ejecuta solo si no es un comando y en chats privados
                 if (!m.isCmd && m.text && !user.awaitingPaymentResponse && !m.isGroup) {
                     
-                    if (user.chatState === 'initial') {
+                    if (user.chatState === 'initial' || isNewUser || isInactive) {
                         const currentConfigData = loadConfigBot();
                         const welcomeMessage = currentConfigData.mensajeBienvenida
                             .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
@@ -401,17 +386,38 @@ export async function handler(m, conn, store) {
                         try {
                             const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                             const chatData = loadChatData();
+                            if (!chatData[m.sender]) {
+                                chatData[m.sender] = {};
+                            }
+
+                            const messageText = m.text.toLowerCase();
+                            if (messageText.includes('mi nombre es')) {
+                                const nameMatch = messageText.match(/mi nombre es\s+(.*?)(?:\s+y|\s+me|\s+necesito|\s+quiero|$)/);
+                                if (nameMatch && nameMatch[1]) {
+                                    chatData[m.sender].nombre = nameMatch[1].trim();
+                                }
+                            }
+                            if (messageText.includes('me gustaria realizar un pago de') || messageText.includes('necesito ayuda con mi pago')) {
+                                chatData[m.sender].motivo = "pago";
+                            }
+                            const montoMatch = messageText.match(/(\d+(?:\s?mil)?(?:\s?pesos)?(?:\s?argentinos)?)/);
+                            if (montoMatch && montoMatch[1]) {
+                                chatData[m.sender].monto = montoMatch[1].trim();
+                            }
+                            saveChatData(chatData);
+
                             const userData = chatData[m.sender] || {};
                             const isClient = !!paymentsData[m.sender];
                             const clientDetails = isClient ? paymentsData[m.sender] : null;
 
-                            const methods = `*Métodos de pago:*
-                                *MEX:* Bancos (BBVA, Banorte, Santander), Oxxo, SPEI.
-                                *PERU:* Bancos (BCP, Interbank), Yape, Plin.
-                                *CHILE:* Bancos (BCI, BancoEstado), MACH.
-                                *ARGENTINA:* Mercado Pago, Ualá.
-                                *COLOMBIA:* Bancos (Bancolombia, Davivienda), Nequi, Daviplata.
-                                (Pregúntale a tu proveedor de servicio para más detalles de su país específico)`;
+                            const paymentMethods = {
+                                '🇲🇽': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+                                '🇵🇪': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+                                '🇨🇱': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
+                                '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
+                            };
+
+                            const methodsList = Object.values(paymentMethods).join('\n\n');
 
                             const clientInfoPrompt = isClient ?
                                 `El usuario es un cliente existente con los siguientes detalles: Nombre: ${clientDetails.nombre}, Día de pago: ${clientDetails.diaPago}, Monto: ${clientDetails.monto}, Bandera: ${clientDetails.bandera}. Su estado es ${clientDetails.suspendido ? 'suspendido' : 'activo'}.` :
@@ -421,21 +427,28 @@ export async function handler(m, conn, store) {
                                 `Datos previos de la conversación con este usuario: ${JSON.stringify(userData)}.` :
                                 `No hay datos previos de conversación con este usuario.`;
                             
-                            const personaPrompt = `Eres Richetti, un asistente virtual amable, servicial y profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes y clientes potenciales con consultas sobre pagos y servicios de Richetti.
+                            const personaPrompt = `Eres CashFlow, un asistente virtual amable, servicial y profesional, diseñado para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes y clientes potenciales con consultas sobre pagos, servicios de bot de WhatsApp y de gestión de clientes.
 
                             Instrucciones:
                             - Responde de forma concisa, útil y profesional.
-                            - Si te preguntan por métodos de pago, puedes usar esta lista: ${methods}
+                            - Si te preguntan por métodos de pago, puedes usar esta lista: ${methodsList}
                             - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
                             - No proporciones información personal ni financiera sensible.
                             - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
                             ${clientInfoPrompt}
                             ${historicalChatPrompt}
-                            - Si el usuario te proporciona datos como su nombre completo, correo electrónico o la razón de su consulta, guárdalos internamente para usarlos en el contexto de esta conversación.
+                            
+                            - Has aprendido que tus servicios son:
+                              - MichiBot exclusivo (pago mensual): Un bot de WhatsApp con gestión de grupos, descargas de redes sociales, IA, stickers y más.
+                              - Bot personalizado (pago mensual): Similar a MichiBot, pero con personalización de tus datos y logo.
+                              - Bot personalizado (único pago): La misma versión personalizada, pero con un solo pago.
+                              - CashFlow: Un bot de gestión de clientes para seguimiento de pagos y recordatorios automáticos.
+                            
+                            - Si el usuario te pregunta por los servicios, usa la información anterior para darle un resumen.
                             
                             Ejemplo de interacción:
                             Usuario: Hola
-                            Tú: ¡Hola! Soy Richetti, tu asistente virtual. Para darte la mejor ayuda, ¿podrías darme tu nombre y el motivo de tu consulta?
+                            Tú: Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?
                             Usuario: Mi nombre es Juan y necesito ayuda con mi pago
                             Tú: ¡Hola Juan! Con gusto te ayudo. Por favor, dime cuál es tu duda.`;
                             
