@@ -33,6 +33,7 @@ const BOT_OWNER_JID = '5217771303481@s.whatsapp.net';
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
 
 const inactivityTimers = {};
+let hasResetOnStartup = false;
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
@@ -73,6 +74,32 @@ const saveChatData = (data) => {
     fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
+const resetAllChatStatesOnStartup = async () => {
+    if (hasResetOnStartup) return;
+    hasResetOnStartup = true;
+
+    try {
+        const users = await new Promise((resolve, reject) => {
+            global.db.data.users.find({}, (err, docs) => {
+                if (err) reject(err);
+                resolve(docs);
+            });
+        });
+
+        const userIdsToReset = users.filter(u => u.chatState !== 'initial').map(u => u.id);
+
+        if (userIdsToReset.length > 0) {
+            console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
+            global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
+                if (err) console.error("Error al reiniciar estados de chat:", err);
+                else console.log(`[BOT STARTUP] Estados de chat reiniciados con éxito.`);
+            });
+        }
+    } catch (e) {
+        console.error("Error al reiniciar estados de chat en el arranque:", e);
+    }
+};
+
 const handleInactivity = async (m, conn, userId) => {
     try {
         const currentConfigData = loadConfigBot();
@@ -111,6 +138,11 @@ const handleInactivity = async (m, conn, userId) => {
 
 export async function handler(m, conn, store) {
     if (!m) return;
+
+    // Ejecutar la función de reinicio al arrancar
+    if (!hasResetOnStartup) {
+        await resetAllChatStatesOnStartup();
+    }
 
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
@@ -266,7 +298,7 @@ export async function handler(m, conn, store) {
                 break;
             case 'historialpagos':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 1): 0)).trim(), command: m.command, usedPrefix: prefix });
                 break;
             case 'pagosmes':
                 if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -333,18 +365,18 @@ export async function handler(m, conn, store) {
                     
                     const faqsList = Object.values(currentConfigData.faqs || {}); 
                     const sections = [{
-                        title: '🛍️ Servicios disponibles',
+                        title: '⭐ Nuestros Servicios',
                         rows: faqsList.map((faq, index) => ({
                             title: `${index + 1}. ${faq.pregunta}`,
                             rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                            description: `Pulsa para obtener una explicacion de: ${faq.pregunta}`
+                            description: `Toca para saber más sobre: ${faq.pregunta}`
                         }))
                     }];
                     const listMessage = {
                         text: welcomeMessage,
-                        footer: 'Abre la lista para ver los servicios que tengo disponibles.',
+                        footer: 'Toca el botón para ver nuestros servicios.',
                         title: '📚 *Bienvenido/a*',
-                        buttonText: 'Servicios disponibles',
+                        buttonText: 'Ver Servicios',
                         sections
                     };
                     await conn.sendMessage(m.chat, listMessage, { quoted: m });
@@ -355,25 +387,25 @@ export async function handler(m, conn, store) {
                     
                     if (user.chatState === 'initial' || isNewUser || isInactive) {
                         const currentConfigData = loadConfigBot();
-                        const welcomeMessage = currentConfigData.mensajeBienvenida
+                        const welcomeMessage = currentConfigData.chatGreeting
                             .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
                             .replace(/{bot}/g, conn.user.name || 'Bot');
                         
                         const faqsList = Object.values(currentConfigData.faqs || {}); 
                         const sections = [{
-                            title: '🛍️ Servicios disponibles',
-                            rows: faqsList.map((faq, index) => ({
-                                title: `${index + 1}. ${faq.pregunta}`,
+                            title: '⭐ Nuestros Servicios',
+                            rows: faqsList.map((faq) => ({
+                                title: faq.pregunta,
                                 rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                                description: `Pulsa para obtener una explicacion de ${faq.pregunta}`
+                                description: `Toca para saber más sobre: ${faq.pregunta}`
                             }))
                         }];
         
                         const listMessage = {
                             text: welcomeMessage,
-                            footer: 'Abre la lista para ver los servicios que tengo disponibles.',
+                            footer: 'Toca el botón para ver nuestros servicios.',
                             title: '📚 *Bienvenido/a*',
-                            buttonText: 'Servicios disponibles',
+                            buttonText: 'Ver Servicios',
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
