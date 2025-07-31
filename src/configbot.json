@@ -1,25 +1,25 @@
 {
   "modoPagoActivo": false,
-  "mensajeBienvenida": "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
+  "mensajeBienvenida": "¡Hola {user}! Soy CashFlow un asistente virtual. ¿En qué puedo ayudarte hoy?",
   "mensajeDespedida": "¡Hasta pronto! Esperamos verte de nuevo.",
   "faqs": {
     "MichiBot exclusivo (pago mensual)": {
-      "pregunta": "¿Qué es MichiBot exclusivo (pago mensual)?",
+      "pregunta": "MichiBot exclusivo (pago mensual)",
       "respuesta": "MichiBot es un bot de WhatsApp con gestión de grupos, descargas de redes sociales (Instagram, Facebook, TikTok, YouTube), inteligencia artificial (ChatGPT o Gemini), stickers y más de 305 comandos. El costo es de 10 soles peruanos, 3 mil pesos argentinos, 3 mil pesos chilenos, 80 pesos mexicanos, o 3 dólares."
     },
     "Bot personalizado (pago mensual)": {
-      "pregunta": "¿Qué es un Bot personalizado (pago mensual)?",
+      "pregunta": "Bot personalizado (pago mensual)",
       "respuesta": "Es un bot de WhatsApp similar a MichiBot, pero completamente personalizado con tus datos: foto/logo, redes sociales, canal de WhatsApp, etiquetas generales y nombre del bot. El costo es de 28 soles peruanos, 8 mil pesos argentinos, 8 mil pesos chilenos, 180 pesos mexicanos, o 8 dólares."
     },
     "Bot personalizado (único pago)": {
-      "pregunta": "¿Qué es un Bot personalizado (único pago)?",
+      "pregunta": "Bot personalizado (único pago)",
       "respuesta": "Es un bot de WhatsApp personalizado con tus datos, similar a la versión de pago mensual, pero con un único pago. El costo es de 20 soles peruanos, 6 mil pesos argentinos, 6 mil pesos chilenos, 120 pesos mexicanos, o 6 dólares."
     },
     "CashFlow": {
-      "pregunta": "¿Qué es CashFlow?",
+      "pregunta": "CashFlow",
       "respuesta": "CashFlow es un bot de gestión de clientes diseñado para facilitar el seguimiento de pagos, enviar recordatorios automáticos y administrar tus clientes de manera eficiente. El costo es de 5 soles peruanos, 1500 pesos argentinos, 1500 pesos chilenos, 40 pesos mexicanos, o 1.5 dólares."
     }
   },
-  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Recuerda que soy CashFlow y si necesitas algo más puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
   "chatGreeting": "Hola soy CashFlow un asistente virtual que está aqui para ayudarte de la mejor manera posible ¿podrias brindarme tu nombre y decirme cual es el motivo de tu consulta?"
 }
