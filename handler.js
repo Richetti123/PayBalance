@@ -136,7 +136,7 @@ const handleInactivity = async (m, conn, userId) => {
     }
 };
 
-const sendWelcomeMessage = async (m, conn, isNewUser, isInactive) => {
+const sendWelcomeMessage = async (m, conn) => {
     const currentConfigData = loadConfigBot();
     const welcomeMessage = currentConfigData.chatGreeting
         .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
@@ -387,11 +387,11 @@ export async function handler(m, conn, store) {
                     break;
                 case 'reactivate_chat':
                     if (!m.isGroup) {
-                        await sendWelcomeMessage(m, conn, false, false);
+                        await sendWelcomeMessage(m, conn);
                     }
                     break;
             }
-            return; // Detener la ejecución si se procesó un comando
+            return;
         }
         
         // Manejar mensajes que no son comandos (Lógica de Asistente Virtual)
@@ -406,7 +406,7 @@ export async function handler(m, conn, store) {
             }
 
             if (user.chatState === 'initial' || isNewUser || isInactive) {
-                await sendWelcomeMessage(m, conn, isNewUser, isInactive);
+                await sendWelcomeMessage(m, conn);
                 return;
             } else if (user.chatState === 'active') {
                 try {
@@ -453,10 +453,11 @@ export async function handler(m, conn, store) {
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                     
-                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte" o similares. Ve directo al punto y sé conciso.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
 
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
+                    - No digas "Hola, soy tu asistente virtual" a menos que sea el primer mensaje.
                     - Si te preguntan por métodos de pago, usa esta lista: ${methodsList}
                     - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
                     - No proporciones información personal ni financiera sensible.
@@ -474,7 +475,7 @@ export async function handler(m, conn, store) {
                     
                     Ejemplo de interacción:
                     Usuario: Hola
-                    Tú: Hola soy CashFlow, tu asistente virtual. ¿En qué puedo ayudarte?
+                    Tú: Hola, ¿en qué puedo ayudarte?
                     Usuario: Mi nombre es Juan y necesito ayuda con mi pago
                     Tú: ¡Hola Juan! Con gusto te ayudo. ¿Cuál es tu duda?`;
                     
