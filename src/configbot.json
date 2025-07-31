@@ -10,12 +10,12 @@
     },
     "Bot personalizado (pago mensual)": {
       "pregunta": "Bot personalizado (pago mensual)",
-      "respuesta": "Es un bot de WhatsApp similar a MichiBot, pero completamente personalizado con tus datos: foto/logo, redes sociales, canal de WhatsApp, etiquetas generales y nombre del bot.",
+      "respuesta": "Es un bot de WhatsApp completamente personalizado con tus datos: foto/logo, redes sociales, canal de WhatsApp, etiquetas generales y nombre del bot. Que se paga mensualmente y que contiene comandos de gestión de grupos, descargas de redes sociales (Instagram, Facebook, TikTok, YouTube), inteligencia artificial (ChatGPT o Gemini), stickers y más de 305 comandos.",
       "precio": "El costo del Bot personalizado (pago mensual) es de 28 soles peruanos, 8 mil pesos argentinos, 8 mil pesos chilenos, 180 pesos mexicanos, o 8 dólares."
     },
     "Bot personalizado (único pago)": {
       "pregunta": "Bot personalizado (único pago)",
-      "respuesta": "Es un bot de WhatsApp personalizado con tus datos, similar a la versión de pago mensual, pero con un único pago.",
+      "respuesta": "Es un bot de WhatsApp completamente personalizado con tus datos: foto/logo, redes sociales, canal de WhatsApp, etiquetas generales y nombre del bot. Que solo se paga una vez y que contiene comandos de gestión de grupos, descargas de redes sociales (Instagram, Facebook, TikTok, YouTube), inteligencia artificial (ChatGPT o Gemini), stickers y más de 305 comandos.",
       "precio": "El costo del Bot personalizado (único pago) es de 20 soles peruanos, 6 mil pesos argentinos, 6 mil pesos chilenos, 120 pesos mexicanos, o 6 dólares."
     },
     "CashFlow": {
