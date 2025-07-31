@@ -333,18 +333,18 @@ export async function handler(m, conn, store) {
                     
                     const faqsList = Object.values(currentConfigData.faqs || {}); 
                     const sections = [{
-                        title: '❓ Preguntas Frecuentes',
+                        title: '🛍️ Servicios disponibles',
                         rows: faqsList.map((faq, index) => ({
                             title: `${index + 1}. ${faq.pregunta}`,
                             rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                            description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
+                            description: `Pulsa para obtener una explicacion de: ${faq.pregunta}`
                         }))
                     }];
                     const listMessage = {
                         text: welcomeMessage,
-                        footer: 'Toca el botón para ver las preguntas frecuentes.',
+                        footer: 'Abre la lista para ver los servicios que tengo disponibles.',
                         title: '📚 *Bienvenido/a*',
-                        buttonText: 'Ver Preguntas Frecuentes',
+                        buttonText: 'Servicios disponibles',
                         sections
                     };
                     await conn.sendMessage(m.chat, listMessage, { quoted: m });
@@ -361,19 +361,19 @@ export async function handler(m, conn, store) {
                         
                         const faqsList = Object.values(currentConfigData.faqs || {}); 
                         const sections = [{
-                            title: '❓ Preguntas Frecuentes',
+                            title: '🛍️ Servicios disponibles',
                             rows: faqsList.map((faq, index) => ({
                                 title: `${index + 1}. ${faq.pregunta}`,
                                 rowId: `${m.prefix}getfaq ${faq.pregunta}`,
-                                description: `Pulsa para ver la respuesta a: ${faq.pregunta}`
+                                description: `Pulsa para obtener una explicacion de ${faq.pregunta}`
                             }))
                         }];
         
                         const listMessage = {
                             text: welcomeMessage,
-                            footer: 'Toca el botón para ver las preguntas frecuentes.',
+                            footer: 'Abre la lista para ver los servicios que tengo disponibles.',
                             title: '📚 *Bienvenido/a*',
-                            buttonText: 'Ver Preguntas Frecuentes',
+                            buttonText: 'Servicios disponibles',
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
