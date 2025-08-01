@@ -21,11 +21,12 @@ import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
 import { handler as despedidaHandler } from './plugins/despedida.js';
 import { handler as derivadosHandler } from './plugins/derivados.js';
 import { handler as ayudaHandler } from './plugins/comandos.js';
-import { handler as faqHandler } from './plugins/faq.js';
-import { handler as getfaqHandler } from './lib/getfaq.js';
 import { handler as importarPagosHandler } from './plugins/importarpagos.js';
 import { handler as resetHandler } from './plugins/reset.js';
 import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
+
+// --- Nuevo import para la librería de botones de lista ---
+import { handleListButtonResponse } from './lib/listbuttons.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,7 +157,7 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
             title: '⭐ Nuestros Servicios',
             rows: faqsList.map((faq) => ({
                 title: faq.pregunta,
-                rowId: `${m.prefix}getfaq ${faq.pregunta}`,
+                rowId: `!getfaq ${faq.pregunta}`, // Corregido: Usa la misma clave para que la librería lo encuentre
                 description: `Toca para saber más sobre: ${faq.pregunta}`
             }))
         }];
@@ -190,35 +191,34 @@ export async function handler(m, conn, store) {
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
+        
+        // El `smsg` debe estar al inicio para procesar el mensaje correctamente
+        m = smsg(conn, m);
 
-        // Extraer texto de botones de lista y de plantillas
-        let isButtonResponse = false;
+        // --- LÓGICA CORREGIDA PARA PRIORIZAR LOS BOTONES DE LISTA ---
+        const listButtonHandled = await handleListButtonResponse(m, conn);
+        if (listButtonHandled) {
+            console.log(`[DEBUG] Mensaje de botón de lista manejado para: ${m.sender}`);
+            return; // Se detiene la ejecución aquí
+        }
+        // --- FIN DE LA LÓGICA CORREGIDA ---
+
+        // El resto del código de extracción de texto para otros tipos de botones
+        // (botones normales y de plantilla) se mantiene aquí, después del check de lista.
         let commandFromButton = null;
-
-        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
-            const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
-            m.text = rowId;
-            m.isCmd = true;
-            m.command = rowId.split(' ')[0].replace(m.prefix, '');
-            isButtonResponse = true;
-            commandFromButton = m.command;
-        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
+        if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
             const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
             m.text = buttonId;
             m.isCmd = true;
             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
-            isButtonResponse = true;
             commandFromButton = m.command;
         } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-             const buttonId = m.message.templateButtonReplyMessage.selectedId;
-             m.text = buttonId;
-             m.isCmd = true;
-             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
-             isButtonResponse = true;
-             commandFromButton = m.command;
+            const buttonId = m.message.templateButtonReplyMessage.selectedId;
+            m.text = buttonId;
+            m.isCmd = true;
+            m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+            commandFromButton = m.command;
         }
-
-        m = smsg(conn, m);
 
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         senderJid = String(senderJid);
@@ -398,10 +398,6 @@ export async function handler(m, conn, store) {
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     await faqHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
-                case 'getfaq':
-                    const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
-                    await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
-                    break;
                 case 'importarpagos':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     await importarPagosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
@@ -415,11 +411,11 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return; // Se detiene la ejecución si se detecta un comando o un botón
+            return;
         }
         
         // Manejo de la lógica del asistente virtual (solo si no es un comando y no es una respuesta de botón)
-        if (m.text && !isButtonResponse && !m.isGroup) {
+        if (m.text && !m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
@@ -550,18 +546,17 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
-                    const res = await apiii.json();
-
-                    if (res.content) { 
-                        const aiResponse = res.content;
-                        await m.reply(aiResponse);
-                    } else {
-                        console.log('Chatbot API no devolvió una respuesta válida:', res);
-                        await m.reply('❌ Lo siento, no pude procesar tu solicitud en este momento. Por favor, intenta de nuevo más tarde.');
+                    const json = await apiii.json();
+                    
+                    const aiResponse = json.result;
+                    if (aiResponse) {
+                        m.reply(aiResponse);
+                        return;
                     }
-                } catch (e) {
-                    console.error('Error en el Asistente Virtual (IA):', e);
-                    await m.reply('❌ Lo siento, ocurrió un error inesperado al intentar ayudarte. Por favor, intenta de nuevo más tarde.');
+                } catch (error) {
+                    console.error('Error al llamar a la IA:', error);
+                    m.reply('Lo siento, en este momento no puedo procesar tu consulta. Por favor, intenta de nuevo más tarde.');
+                    return;
                 }
             }
         }
@@ -569,10 +564,3 @@ export async function handler(m, conn, store) {
         console.error('Error en handler:', e);
     }
 }
-
-let file = fileURLToPath(import.meta.url);
-watchFile(file, () => {
-    unwatchFile(file);
-    console.log(chalk.redBright("Actualizando 'handler.js'..."));
-    import(`${file}?update=${Date.now()}`); 
-});
