@@ -32,7 +32,7 @@ import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 
-// **Corregido**: Definición de __filename y __dirname para ES Modules
+// Definición de __filename y __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -98,30 +98,31 @@ const countryPaymentMethods = {
     'colombia': ``
 };
 
-const resetAllChatStatesOnStartup = async () => {
-    if (hasResetOnStartup) return;
-    hasResetOnStartup = true;
-
-    try {
-        const users = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) reject(err);
-                resolve(docs);
-            });
-        });
-
-        const userIdsToReset = users.filter(u => u.chatState !== 'initial').map(u => u.id);
-
-        if (userIdsToReset.length > 0) {
-            console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
-            global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
-                if (err) console.error("Error al reiniciar estados de chat:", err);
-            });
-        }
-    } catch (e) {
-        console.error("Error al reiniciar estados de chat en el arranque:", e);
-    }
-};
+// **COMENTADO**: Esta función resetea el estado de todos los chats al iniciar el bot, causando interferencia.
+// const resetAllChatStatesOnStartup = async () => {
+//     if (hasResetOnStartup) return;
+//     hasResetOnStartup = true;
+//
+//     try {
+//         const users = await new Promise((resolve, reject) => {
+//             global.db.data.users.find({}, (err, docs) => {
+//                 if (err) reject(err);
+//                 resolve(docs);
+//             });
+//         });
+//
+//         const userIdsToReset = users.filter(u => u.chatState !== 'initial').map(u => u.id);
+//
+//         if (userIdsToReset.length > 0) {
+//             console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
+//             global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
+//                 if (err) console.error("Error al reiniciar estados de chat:", err);
+//             });
+//         }
+//     } catch (e) {
+//         console.error("Error al reiniciar estados de chat en el arranque:", e);
+//     }
+// };
 
 const handleInactivity = async (m, conn, userId) => {
     try {
@@ -211,9 +212,10 @@ export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
 
-    if (!hasResetOnStartup) {
-        await resetAllChatStatesOnStartup();
-    }
+    // **COMENTADO**: Deshabilitamos la llamada a la función de reseteo al inicio del bot.
+    // if (!hasResetOnStartup) {
+    //     await resetAllChatStatesOnStartup();
+    // }
 
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
