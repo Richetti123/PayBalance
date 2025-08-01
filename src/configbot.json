@@ -25,5 +25,5 @@
     }
   },
   "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. Si necesitas algo más, puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-  "chatGreeting": "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
+  "chatGreeting": "Hola {user} soy CashFlow un asistente virtual y estoy aqui para atenderte de la mejor manera posible"
 }
