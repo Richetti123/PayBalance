@@ -83,6 +83,8 @@ const saveChatData = (data) => {
 const countryPaymentMethods = {
     'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
     'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
     'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
     'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`,
     'bolivia': ``,
@@ -197,34 +199,6 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
     }
 };
 
-const handlePaymentProof = async (m, conn) => {
-    const currentConfigData = loadConfigBot();
-    if (!currentConfigData.modoPagoActivo) {
-        return;
-    }
-
-    const { manejarRespuestaPago } = await import('./lib/respuestapagos.js');
-    const { handleIncomingMedia } = await import('./lib/comprobantes.js');
-    const { isPaymentProof } = await import('./lib/keywords.js');
-
-    const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-    const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-    const isPaymentResponseExpected = m.user?.awaitingPaymentResponse;
-
-    if (isPaymentResponseExpected || esImagenConComprobante || esDocumentoConComprobante) {
-        const handled = await manejarRespuestaPago(m, conn);
-        if (handled) return true;
-    }
-    
-    if (m.message?.imageMessage || m.message?.documentMessage) {
-        const handledMedia = await handleIncomingMedia(m, conn);
-        if (handledMedia) return true;
-    }
-
-    return false;
-};
-
-
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
@@ -238,7 +212,7 @@ export async function handler(m, conn, store) {
         if (m.key.remoteJid === 'status@broadcast') return;
 
         m = smsg(conn, m);
-        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant.startsWith(BOT_OWNER_NUMBER));
+        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
         m.prefix = '!';
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
@@ -502,15 +476,26 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (user.chatState === 'active') {
-                // Manejo de FAQs con la nueva lógica de botones
+                // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
+                const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+                const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+                
+                if (esImagenConComprobante || esDocumentoConComprobante) {
+                    // Llama al manejador específico de comprobantes.
+                    const handledMedia = await handleIncomingMedia(m, conn);
+                    if (handledMedia) {
+                        // Si el comprobante se procesó correctamente, termina la ejecución aquí.
+                        return;
+                    }
+                }
+
+                // SEGUNDO: Revisa si es una pregunta sobre servicios con botones (FAQs).
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
                     return;
                 }
 
-                if (await handlePaymentProof(m, conn)) {
-                    return;
-                }
+                // TERCERO: Revisa si es una pregunta general sobre métodos de pago.
                 const paises = Object.keys(countryPaymentMethods);
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
@@ -527,6 +512,7 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
+                // CUARTO: Revisa si es una intención de pago (texto sin imagen).
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
@@ -535,6 +521,7 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
+                // QUINTO: Lógica de preguntas sobre precios e info de la última FAQ enviada.
                 const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
                 const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
@@ -555,7 +542,7 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // Si nada de lo anterior coincide, usar la IA
+                // ÚLTIMO RECURSO: Usar la IA
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const paymentMethods = {
@@ -574,7 +561,7 @@ export async function handler(m, conn, store) {
                         
                     const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
-                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
+                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.JSON.stringify(userChatData)}.
                     
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
@@ -610,7 +597,6 @@ export async function handler(m, conn, store) {
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
-
 // Observador para cambios en archivos (útil para el desarrollo)
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
