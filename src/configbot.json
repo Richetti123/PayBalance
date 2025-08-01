@@ -24,6 +24,6 @@
       "precio": "El costo de CashFlow es de 5 soles peruanos, 1500 pesos argentinos, 1500 pesos chilenos, 40 pesos mexicanos, o 1.5 dólares."
     }
   },
-  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Recuerda que soy CashFlow y si necesitas algo más puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-  "chatGreeting": "Hola {user} soy CashFlow un asistente virtual y estoy aqui para atenderte de la mejor manera posible"
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. Si necesitas algo más, puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+  "chatGreeting": "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
 }
