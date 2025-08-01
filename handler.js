@@ -307,7 +307,7 @@ export async function handler(m, conn, store) {
                 case 'registrarlote':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
-                    await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 1)).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recibo':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -387,7 +387,9 @@ export async function handler(m, conn, store) {
                     await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'getfaq':
-                    await getfaqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    // Eliminar el prefijo del texto del comando para la búsqueda de FAQ
+                    const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
+                    await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
                     break;
                 case 'importarpagos':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -402,7 +404,7 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return;
+            return; // Se detiene la ejecución si se detecta un comando
         }
 
         // Lógica del Asistente Virtual (Se ejecuta solo si no es un comando)
@@ -419,17 +421,26 @@ export async function handler(m, conn, store) {
                 return;
             } else if (user.chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
-                    const name = messageTextLower.split(' ')[0]; // Asumimos que la primera palabra es el nombre
+                    let name = messageTextLower;
+                    const soyMatch = messageTextLower.match(/^soy\s+(.*?)$/);
+                    const nombreEsMatch = messageTextLower.match(/^mi nombre es\s+(.*?)$/);
+                    
+                    if (soyMatch && soyMatch[1]) {
+                        name = soyMatch[1];
+                    } else if (nombreEsMatch && nombreEsMatch[1]) {
+                        name = nombreEsMatch[1];
+                    }
+
                     userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                     saveChatData(chatData);
                     global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                         if (err) console.error("Error al actualizar chatState a active:", err);
                     });
-                    await sendWelcomeMessage(m, conn); // Envía el mensaje con los servicios ahora que tiene el nombre
+                    await sendWelcomeMessage(m, conn);
                     return;
                 }
             }
-            
+
             // Flujo 2: Manejo de la conversación activa
             if (user.chatState === 'active') {
 
@@ -437,15 +448,16 @@ export async function handler(m, conn, store) {
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
 
-                if (isPaymentIntent) {
+                // Asegurar que el flujo de pago no se active si el mensaje es de un comando
+                if (isPaymentIntent && !m.isCmd) {
                     const paymentMessage = `Al momento de realizar su pago por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
                 }
-
+                
                 // Paso 2.2: Manejar preguntas de precio/información contextual
                 const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
-                const askForInfo = ['más información'].some(keyword => messageTextLower.includes(keyword));
+                const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
                 if ((askForPrice || askForInfo) && userChatData.lastFaqSent) {
                     const faqKey = Object.keys(faqs).find(key => faqs[key].pregunta.toLowerCase() === userChatData.lastFaqSent.toLowerCase());
@@ -460,8 +472,6 @@ export async function handler(m, conn, store) {
                         }
                         
                         await m.reply(replyText);
-
-                        // Mantener el contexto si la pregunta es de seguimiento, pero no de fin de conversación
                         delete chatData[m.sender].lastFaqSent;
                         saveChatData(chatData);
                         return;
@@ -470,13 +480,32 @@ export async function handler(m, conn, store) {
                 
                 // Paso 2.3: Si nada de lo anterior coincide, usar la IA
                 try {
+                    const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+
+                    const paymentMethods = {
+                        '🇲🇽': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+                        '🇵🇪': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+                        '🇨🇱': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
+                        '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
+                    };
+
+                    const methodsList = Object.values(paymentMethods).join('\n\n');
+
+                    const clientInfoPrompt = !!paymentsData[m.sender] ?
+                        `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[m.sender].nombre}, Día de pago: ${paymentsData[m.sender].diaPago}, Monto: ${paymentsData[m.sender].monto}, Bandera: ${paymentsData[m.sender].bandera}. Su estado es ${paymentsData[m.sender].suspendido ? 'suspendido' : 'activo'}.` :
+                        `El usuario no es un cliente existente. Es un cliente potencial.`;
+
+                    const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
+                        `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
+                        `No hay datos previos de conversación con este usuario.`;
+                    
                     const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
                     El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
                     
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
-                    - Si te preguntan por métodos de pago, usa esta lista: ${JSON.stringify(paymentMethods)}
+                    - Si te preguntan por métodos de pago, usa esta lista: ${methodsList}
                     - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
                     - No proporciones información personal ni financiera sensible.
                     - No inventes precios. Si te preguntan por el precio de un servicio, informa que revisen la lista de servicios.
