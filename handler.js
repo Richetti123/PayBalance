@@ -6,7 +6,7 @@ import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { manejarRespuestaPago } from './lib/respuestapagos.js';
+import { handlePaymentProofButton, manejarRespuestaPago } from './lib/respuestapagos.js'; // <-- Importación corregida
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js';
@@ -239,95 +239,12 @@ export async function handler(m, conn, store) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
-
-        let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
-        senderJid = String(senderJid);
-        let senderNumber = 'Desconocido';
-        let senderName = m.pushName || 'Desconocido';
-        if (senderJid && senderJid !== 'undefined' && senderJid !== 'null') {
-            senderNumber = senderJid.split('@')[0];
-        } else {
-            console.warn(`Mensaje recibido con senderJid inválido: '${senderJid}'.`);
-        }
-        let groupName = 'Chat Privado';
-        if (m.key.remoteJid && m.key.remoteJid.endsWith('@g.us')) {
-            try {
-                const groupMetadata = await conn.groupMetadata(m.key.remoteJid);
-                groupName = groupMetadata.subject || 'Grupo Desconocido';
-            } catch (e) {
-                console.error("Error al obtener metadatos del grupo:", e);
-                groupName = 'Grupo (Error)';
-            }
-        }
-        const messageType = Object.keys(m.message || {})[0];
-        const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
-        const commandForLog = m.isCmd ? m.text : null;
-        console.log(
-            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(commandForLog) : chalk.yellow('Mensaje')}`) + '\n' +
-            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
-            chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
-            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`${rawText || ' (Sin texto legible) '}`)
-        );
-
-
-        if (!m.sender) {
-            console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
+        
+        // Lógica corregida para manejar botones de pago primero
+        if (await handlePaymentProofButton(m, conn)) {
             return;
         }
 
-        let userDoc = await new Promise((resolve, reject) => {
-            global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
-                if (err) reject(err);
-                resolve(doc);
-            });
-        });
-
-        const now = new Date() * 1;
-        const lastSeenThreshold = 45 * 60 * 1000;
-        const isNewUser = !userDoc;
-        const isInactive = userDoc && (now - userDoc.lastseen > lastSeenThreshold);
-
-        if (isNewUser) {
-            userDoc = {
-                id: m.sender,
-                awaitingPaymentResponse: false,
-                paymentClientName: '',
-                paymentClientNumber: '',
-                lastseen: now,
-                chatState: 'initial',
-                registered: false,
-            };
-            await new Promise((resolve, reject) => {
-                global.db.data.users.insert(userDoc, (err, newDoc) => {
-                    if (err) reject(err);
-                    resolve(newDoc);
-                });
-            });
-        } else {
-            global.db.data.users.update({ id: m.sender }, { $set: { lastseen: now } }, {}, (err, numReplaced) => {
-                if (err) console.error("Error al actualizar lastseen:", err);
-            });
-        }
-        const user = userDoc;
-        m.user = user;
-
-        if (inactivityTimers[m.sender]) {
-            clearTimeout(inactivityTimers[m.sender]);
-            delete inactivityTimers[m.sender];
-        }
-
-        if (!m.isCmd && m.text && !m.isGroup) {
-            inactivityTimers[m.sender] = setTimeout(() => {
-                handleInactivity(m, conn, m.sender);
-            }, INACTIVITY_TIMEOUT_MS);
-        }
-        
-        // --- Lógica de Comandos (solo para grupos) ---
         if (m.isCmd) {
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
