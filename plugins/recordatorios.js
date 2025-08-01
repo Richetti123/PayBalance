@@ -152,7 +152,7 @@ CBU: 4530000800011127480736`;
                     });
                 }
 
-                await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio automático enviado a *${nombre}* (${numero}).` });
+                await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio automático enviado a *${nombre}* (+${numero}).` });
                 // console.log(`[DEBUG - Auto] Confirmación enviada a admin para ${formattedNumber}.`); // Comentado
 
             } catch (sendError) {
@@ -315,10 +315,10 @@ CBU: 4530000800011127480736`;
         
         // --- Nueva línea de depuración ---
         // console.log(`[DEBUG - Manual] Intentando enviar confirmación a m.chat (${m.chat}).`); // Comentado
-        await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` }, { quoted: m });
+        await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (+${numeroSinPrefijo}).` }, { quoted: m });
         // console.log(`[DEBUG - Manual] Confirmación a m.chat enviada exitosamente.`); // Comentado
 
-        await conn.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio manual enviado a *${nombre}* (${numeroSinPrefijo}).` });
+        await conn.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio manual enviado a *${nombre}* (+${numeroSinPrefijo}).` });
         // console.log(`[DEBUG - Manual] Confirmación a admin_number_confirmation enviada.`); // Comentado
 
     } catch (error) {
