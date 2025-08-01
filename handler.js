@@ -9,8 +9,6 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
-
-// Importación de handlers de plugins
 import { handler as clienteHandler } from './plugins/cliente.js';
 import { handler as historialPagosHandler } from './plugins/historialpagos.js';
 import { handler as pagosMesHandler } from './plugins/pagosmes.js';
@@ -23,15 +21,10 @@ import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
 import { handler as despedidaHandler } from './plugins/despedida.js';
 import { handler as derivadosHandler } from './plugins/derivados.js';
 import { handler as ayudaHandler } from './plugins/comandos.js';
-import { handler as faqHandler } from './plugins/faq.js';
-import { handler as getfaqHandler } from './lib/getfaq.js';
 import { handler as importarPagosHandler } from './plugins/importarpagos.js';
 import { handler as resetHandler } from './plugins/reset.js';
 import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
-import { handler as registrarPagoHandler } from './plugins/registrarpago.js';
-import { handler as agregarClientesHandler } from './plugins/agregarclientes.js';
-import { handler as enviarReciboHandler } from './plugins/enviarrecibo.js';
-import { handler as recordatorioHandler } from './plugins/recordatorios.js';
+import { handleListButtonResponse } from './lib/listbuttons.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
