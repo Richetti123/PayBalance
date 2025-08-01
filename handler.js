@@ -31,6 +31,7 @@ import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
+import { handleAutomaticReminder } from './lib/automaticreminder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -240,12 +241,16 @@ export async function handler(m, conn, store) {
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
         
-        // Lógica corregida para manejar botones de pago primero
+        // **NUEVO**: Llama a manejar el recordatorio automático primero
+        if (await handleAutomaticReminder(m, conn)) {
+            return;
+        }
+
+        // Lógica corregida para manejar botones de pago
         if (await handlePaymentProofButton(m, conn)) {
             return;
         }
         
-        // **NUEVO**: Llama a manejarRespuestaPago para los botones de recordatorios
         if (await manejarRespuestaPago(m, conn)) {
             return;
         }
@@ -388,9 +393,11 @@ export async function handler(m, conn, store) {
             });
             const isNewUser = Object.keys(user).length === 0;
             const isInactive = user.chatState === 'initial';
+            const isAwaitingPaymentProof = user.chatState === 'awaitingPaymentProof';
 
-            // ***NUEVA LÓGICA: PROCESAR COMPROBANTES CUANDO SE ESPERA UNO***
-            if (user.chatState === 'awaitingPaymentProof') {
+
+            // ***Manejo de estados de chat***
+            if (isAwaitingPaymentProof) {
                 const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
                 const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
 
@@ -401,11 +408,11 @@ export async function handler(m, conn, store) {
                     });
                     return;
                 } else if (m.text) {
-                    // Si el usuario envía solo texto, le recordamos que se necesita una imagen/documento
                     await m.reply("Recuerda, estoy esperando la foto o el documento de tu comprobante. Por favor, adjunta la imagen con la leyenda adecuada.");
                     return;
                 }
             }
+
 
             if (user.chatState === 'initial' || isNewUser || isInactive) {
                 await sendWelcomeMessage(m, conn, true);
@@ -450,10 +457,8 @@ export async function handler(m, conn, store) {
                 const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
                 
                 if (esImagenConComprobante || esDocumentoConComprobante) {
-                    // Llama al manejador específico de comprobantes.
                     const handledMedia = await handleIncomingMedia(m, conn);
                     if (handledMedia) {
-                        // Si el comprobante se procesó correctamente, termina la ejecución aquí.
                         return;
                     }
                 }
