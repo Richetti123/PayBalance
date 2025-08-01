@@ -35,7 +35,7 @@ import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BOT_OWNER_JID = '5217771303481';
+const BOT_OWNER_NUMBER = '5217771303481';
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
 
 const inactivityTimers = {};
