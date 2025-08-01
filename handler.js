@@ -9,6 +9,8 @@ import fetch from 'node-fetch';
 import { manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
+
+// Importación de handlers de plugins
 import { handler as clienteHandler } from './plugins/cliente.js';
 import { handler as historialPagosHandler } from './plugins/historialpagos.js';
 import { handler as pagosMesHandler } from './plugins/pagosmes.js';
@@ -21,12 +23,16 @@ import { handler as bienvenidaHandler } from './plugins/bienvenida.js';
 import { handler as despedidaHandler } from './plugins/despedida.js';
 import { handler as derivadosHandler } from './plugins/derivados.js';
 import { handler as ayudaHandler } from './plugins/comandos.js';
+import { handler as faqHandler } from './plugins/faq.js';
+import { handler as getfaqHandler } from './lib/getfaq.js';
 import { handler as importarPagosHandler } from './plugins/importarpagos.js';
 import { handler as resetHandler } from './plugins/reset.js';
 import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
+import { handler as registrarPagoHandler } from './plugins/registrarpago.js';
+import { handler as agregarClientesHandler } from './plugins/agregarclientes.js';
+import { handler as enviarReciboHandler } from './plugins/enviarrecibo.js';
+import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 
-// --- Nuevo import para la librería de botones de lista ---
-import { handleListButtonResponse } from './lib/listbuttons.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -157,7 +163,7 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
             title: '⭐ Nuestros Servicios',
             rows: faqsList.map((faq) => ({
                 title: faq.pregunta,
-                rowId: `!getfaq ${faq.pregunta}`, // Corregido: Usa la misma clave para que la librería lo encuentre
+                rowId: `${m.prefix}getfaq ${faq.pregunta}`,
                 description: `Toca para saber más sobre: ${faq.pregunta}`
             }))
         }];
@@ -177,6 +183,33 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
     }
 };
 
+const handlePaymentProof = async (m, conn) => {
+    const currentConfigData = loadConfigBot();
+    if (!currentConfigData.modoPagoActivo) {
+        return;
+    }
+
+    const { manejarRespuestaPago } = await import('./lib/respuestapagos.js');
+    const { handleIncomingMedia } = await import('./lib/comprobantes.js');
+    const { isPaymentProof } = await import('./lib/keywords.js');
+
+    const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+    const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+    const isPaymentResponseExpected = m.user?.awaitingPaymentResponse;
+
+    if (isPaymentResponseExpected || esImagenConComprobante || esDocumentoConComprobante) {
+        const handled = await manejarRespuestaPago(m, conn);
+        if (handled) return true;
+    }
+    
+    if (m.message?.imageMessage || m.message?.documentMessage) {
+        const handledMedia = await handleIncomingMedia(m, conn);
+        if (handledMedia) return true;
+    }
+
+    return false;
+};
+
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return; 
@@ -191,34 +224,34 @@ export async function handler(m, conn, store) {
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
-        
-        // El `smsg` debe estar al inicio para procesar el mensaje correctamente
-        m = smsg(conn, m);
 
-        // --- LÓGICA CORREGIDA PARA PRIORIZAR LOS BOTONES DE LISTA ---
-        const listButtonHandled = await handleListButtonResponse(m, conn);
-        if (listButtonHandled) {
-            console.log(`[DEBUG] Mensaje de botón de lista manejado para: ${m.sender}`);
-            return; // Se detiene la ejecución aquí
-        }
-        // --- FIN DE LA LÓGICA CORREGIDA ---
-
-        // El resto del código de extracción de texto para otros tipos de botones
-        // (botones normales y de plantilla) se mantiene aquí, después del check de lista.
+        let isButtonResponse = false;
         let commandFromButton = null;
-        if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
+
+        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
+            const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+            m.text = rowId;
+            m.isCmd = true;
+            m.command = rowId.split(' ')[0].replace(m.prefix, '');
+            isButtonResponse = true;
+            commandFromButton = m.command;
+        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
             const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
             m.text = buttonId;
             m.isCmd = true;
             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+            isButtonResponse = true;
             commandFromButton = m.command;
         } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-            const buttonId = m.message.templateButtonReplyMessage.selectedId;
-            m.text = buttonId;
-            m.isCmd = true;
-            m.command = buttonId.split(' ')[0].replace(m.prefix, '');
-            commandFromButton = m.command;
+             const buttonId = m.message.templateButtonReplyMessage.selectedId;
+             m.text = buttonId;
+             m.isCmd = true;
+             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+             isButtonResponse = true;
+             commandFromButton = m.command;
         }
+
+        m = smsg(conn, m);
 
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         senderJid = String(senderJid);
@@ -294,6 +327,7 @@ export async function handler(m, conn, store) {
             });
         }
         const user = userDoc;
+        m.user = user;
 
         if (inactivityTimers[m.sender]) {
             clearTimeout(inactivityTimers[m.sender]);
@@ -312,23 +346,19 @@ export async function handler(m, conn, store) {
                 case 'registrarpago':
                 case 'agregarcliente':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
                     await registrarPagoHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'agregarclientes':
                 case 'registrarlote':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
                     await agregarClientesHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recibo':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    const { handler: enviarReciboHandler } = await import('./plugins/enviarrecibo.js');
                     await enviarReciboHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recordatorio':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    const { handler: recordatorioHandler } = await import('./plugins/recordatorios.js');
                     await recordatorioHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'clientes':
@@ -398,6 +428,10 @@ export async function handler(m, conn, store) {
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     await faqHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
+                case 'getfaq':
+                    const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
+                    await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
+                    break;
                 case 'importarpagos':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     await importarPagosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
@@ -411,30 +445,20 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return;
+            return; // Se detiene la ejecución si se detecta un comando o un botón
         }
         
         // Manejo de la lógica del asistente virtual (solo si no es un comando y no es una respuesta de botón)
-        if (m.text && !m.isGroup) {
+        if (m.text && !isButtonResponse && !m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
-            const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-            const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-            
             // Lógica de comprobantes de pago
-            if (user.awaitingPaymentResponse || esImagenConComprobante || esDocumentoConComprobante) {
-                const handled = await manejarRespuestaPago(m, conn);
-                if (handled) return;
-            }
-            
-            // Lógica de manejo de medios (imágenes o documentos)
-            if (m.message?.imageMessage || m.message?.documentMessage) {
-                const handledMedia = await handleIncomingMedia(m, conn);
-                if (handledMedia) return;
+            if (await handlePaymentProof(m, conn)) {
+                return;
             }
 
             // Flujo 1: Pedir y almacenar el nombre
@@ -547,20 +571,27 @@ export async function handler(m, conn, store) {
                     const encodedText = encodeURIComponent(m.text);
                     const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
                     const json = await apiii.json();
-                    
-                    const aiResponse = json.result;
-                    if (aiResponse) {
-                        m.reply(aiResponse);
-                        return;
+                    if (json.resultado) {
+                        m.reply(json.resultado);
+                    } else {
+                        m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     }
-                } catch (error) {
-                    console.error('Error al llamar a la IA:', error);
-                    m.reply('Lo siento, en este momento no puedo procesar tu consulta. Por favor, intenta de nuevo más tarde.');
-                    return;
+                } catch (e) {
+                    console.error("Error en la llamada a la API de IA:", e);
+                    m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
                 }
             }
         }
     } catch (e) {
-        console.error('Error en handler:', e);
+        console.error(e);
+        m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
+
+// Observador para cambios en archivos (útil para el desarrollo)
+let file = fileURLToPath(import.meta.url);
+watchFile(file, () => {
+    unwatchFile(file);
+    console.log(chalk.redBright("Se actualizó 'handler.js', recargando..."));
+    import(`${file}?update=${Date.now()}`);
+});
