@@ -1,7 +1,6 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
-import { fileURLToPath } from 'url';
 import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
@@ -29,11 +28,8 @@ import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
 import { handler as registrarPagoHandler } from './plugins/registrarpago.js';
 import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
-import { handler as recordatorioHandler } from './plugins/recordatorios.js';
+import { handler as recordatorioHandler } from './plugins/plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const BOT_OWNER_NUMBER = '5217771303481';
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
@@ -115,7 +111,6 @@ const resetAllChatStatesOnStartup = async () => {
             console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
             global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
                 if (err) console.error("Error al reiniciar estados de chat:", err);
-                else console.log(`[BOT STARTUP] Estados de chat reiniciados con éxito.`);
             });
         }
     } catch (e) {
@@ -240,11 +235,6 @@ export async function handler(m, conn, store) {
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
         
-        // **NUEVO**: Llama a manejar el recordatorio automático primero
-        if (await handleAutomaticReminder(m, conn)) {
-            return;
-        }
-
         // Lógica corregida para manejar botones de pago
         if (await handlePaymentProofButton(m, conn)) {
             return;
