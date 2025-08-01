@@ -138,7 +138,7 @@ const handleInactivity = async (m, conn, userId) => {
                 description: 'Pulsa aquí para iniciar una nueva conversación.'
             }]
         }];
-        
+        
         const listMessage = {
             text: farewellMessage,
             footer: 'Toca el botón para reactivar la conversación.',
@@ -152,7 +152,7 @@ const handleInactivity = async (m, conn, userId) => {
             if (err) console.error("Error al actualizar chatState a initial:", err);
         });
         delete inactivityTimers[userId];
-        
+        
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
     }
@@ -175,11 +175,11 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
     if (namePrompt || !userChatData.nombre) {
         welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
-        
+        
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a awaitingName:", err);
         });
-        
+        
     } else {
         welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
         const faqsList = Object.values(currentConfigData.faqs || {}); 
@@ -200,7 +200,7 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
             sections
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
-        
+        
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a active:", err);
         });
@@ -446,7 +446,7 @@ export async function handler(m, conn, store) {
             }
             return;
         }
-        
+
         // --- Lógica del Asistente Virtual (solo para chats privados) ---
         if (!m.isGroup) {
             const currentConfigData = loadConfigBot();
@@ -492,24 +492,7 @@ export async function handler(m, conn, store) {
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
-                if (m.message && m.message.buttonsResponseMessage && m.isOwner) {
-                    const selectedId = m.message.buttonsResponseMessage.selectedButtonId;
-                if (m.message && m.message.buttonsResponseMessage && m.isOwner) {
-                    const selectedId = m.message.buttonsResponseMessage.selectedButtonId;
-                    if (selectedId.startsWith('accept_payment_')) {
-                        const clientJid = selectedId.replace('accept_payment_', '');
-                        const responseMessage = '✅ ¡Genial! Tu pago ha sido aceptado. En un momento el creador se comunicará contigo para la entrega del servicio que compraste.';
-                        await conn.sendMessage(clientJid, { text: responseMessage });
-                        await m.reply(`✅ Comprobante aceptado. Se notificó al cliente ${clientJid}.`);
-                        return;
-                    } else if (selectedId.startsWith('reject_payment_')) {
-                        const clientJid = selectedId.replace('reject_payment_', '');
-                        const responseMessage = '❌ ¡Importante! Mi creador ha rechazado este comprobante de pago, tal vez porque es falso o porque la transferencia no se recibió. De igual manera, en un momento se comunicará contigo para resolver este problema.';
-                        await conn.sendMessage(clientJid, { text: responseMessage });
-                        await m.reply(`❌ Comprobante rechazado. Se notificó al cliente ${clientJid}.`);
-                        return;
-                    }
-                }
+                
                 // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
                 const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
                 const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
