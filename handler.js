@@ -438,7 +438,7 @@ export async function handler(m, conn, store) {
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isPaymentIntent) {
-                    const paymentMessage = "Al momento de realizar su pago por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸";
+                    const paymentMessage = `Al momento de realizar su pago por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
                 }
