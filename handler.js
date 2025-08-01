@@ -190,27 +190,32 @@ export async function handler(m, conn, store) {
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
-        
+
         // Extraer texto de botones de lista y de plantillas
         let isButtonResponse = false;
+        let commandFromButton = null;
+
         if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
             const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
             m.text = rowId;
             m.isCmd = true;
             m.command = rowId.split(' ')[0].replace(m.prefix, '');
             isButtonResponse = true;
+            commandFromButton = m.command;
         } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
             const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
             m.text = buttonId;
             m.isCmd = true;
             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
             isButtonResponse = true;
+            commandFromButton = m.command;
         } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
              const buttonId = m.message.templateButtonReplyMessage.selectedId;
              m.text = buttonId;
              m.isCmd = true;
              m.command = buttonId.split(' ')[0].replace(m.prefix, '');
              isButtonResponse = true;
+             commandFromButton = m.command;
         }
 
         m = smsg(conn, m);
@@ -236,12 +241,12 @@ export async function handler(m, conn, store) {
         }
         const messageType = Object.keys(m.message || {})[0];
         const rawText = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
-        const commandForLog = rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null;
+        const commandForLog = commandFromButton ? `Botón: ${commandFromButton}` : (rawText.startsWith('.') || rawText.startsWith('!') || rawText.startsWith('/') || rawText.startsWith('#') ? rawText.split(' ')[0] : null);
         console.log(
             chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
             chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(commandForLog) : chalk.yellow('Mensaje')}`) + '\n' +
             chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
             chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
             chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
@@ -300,46 +305,31 @@ export async function handler(m, conn, store) {
                 handleInactivity(m, conn, m.sender);
             }, INACTIVITY_TIMEOUT_MS);
         }
-
-        const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-        const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-
-        if (user.awaitingPaymentResponse || esImagenConComprobante || esDocumentoConComprobante) {
-            const handled = await manejarRespuestaPago(m, conn);
-            if (handled) return;
-        }
-
-        if (m.message?.imageMessage || m.message?.documentMessage) {
-            const handledMedia = await handleIncomingMedia(m, conn);
-            if (handledMedia) return;
-        }
-
-        const prefix = m.prefix;
         
-        // Manejo de comandos (Se ejecuta primero)
+        // Manejo de comandos y respuestas de botones
         if (m.isCmd) {
             switch (m.command) {
                 case 'registrarpago':
                 case 'agregarcliente':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     const { handler: registrarPagoHandler } = await import('./plugins/registrarpago.js');
-                    await registrarPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await registrarPagoHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'agregarclientes':
                 case 'registrarlote':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     const { handler: agregarClientesHandler } = await import('./plugins/agregarclientes.js');
-                    await agregarClientesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 1)).trim(), command: m.command, usedPrefix: prefix });
+                    await agregarClientesHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recibo':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     const { handler: enviarReciboHandler } = await import('./plugins/enviarrecibo.js');
-                    await enviarReciboHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await enviarReciboHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recordatorio':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     const { handler: recordatorioHandler } = await import('./plugins/recordatorios.js');
-                    await recordatorioHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await recordatorioHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'clientes':
                 case 'listarpagos':
@@ -359,63 +349,62 @@ export async function handler(m, conn, store) {
                     break;
                 case 'cliente': case 'vercliente': case 'editarcliente': case 'eliminarcliente':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await clienteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
+                    await clienteHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                     break;
                 case 'historialpagos':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await historialPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await historialPagosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'pagosmes':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await pagosMesHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await pagosMesHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'pagosatrasados':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await pagosAtrasadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await pagosAtrasadosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'recordatoriolote':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await recordatorioLoteHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await recordatorioLoteHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'suspendercliente': case 'activarcliente':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await suspenderActivarHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await suspenderActivarHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'modopago':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await modoPagoHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                    await modoPagoHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                     break;
                 case 'estadobot':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await estadoBotHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await estadoBotHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'bienvenida':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await bienvenidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                    await bienvenidaHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                     break;
                 case 'despedida':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await despedidaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                    await despedidaHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                     break;
                 case 'derivados':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await derivadosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await derivadosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'ayuda': case 'comandos':
-                    await ayudaHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await ayudaHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'faq': case 'eliminarfaq':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
+                    await faqHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'getfaq':
-                    // Eliminar el prefijo del texto del comando para la búsqueda de FAQ
                     const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
                     await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
                     break;
                 case 'importarpagos':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                    await importarPagosHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
+                    await importarPagosHandler(m, { conn, text: m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim(), command: m.command, usedPrefix: prefix, isOwner: m.isOwner });
                     break;
                 case 'reset':
                     await resetHandler(m, { conn, text: m.text, command: m.command, usedPrefix: prefix });
@@ -426,16 +415,31 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return; // Se detiene la ejecución si se detecta un comando
+            return; // Se detiene la ejecución si se detecta un comando o un botón
         }
         
-        // Lógica del Asistente Virtual (Se ejecuta solo si no es un comando y no es una respuesta de botón)
-        if (m.text && !user.awaitingPaymentResponse && !m.isGroup && !isButtonResponse) {
+        // Manejo de la lógica del asistente virtual (solo si no es un comando y no es una respuesta de botón)
+        if (m.text && !isButtonResponse && !m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
+
+            const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+            const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+            
+            // Lógica de comprobantes de pago
+            if (user.awaitingPaymentResponse || esImagenConComprobante || esDocumentoConComprobante) {
+                const handled = await manejarRespuestaPago(m, conn);
+                if (handled) return;
+            }
+            
+            // Lógica de manejo de medios (imágenes o documentos)
+            if (m.message?.imageMessage || m.message?.documentMessage) {
+                const handledMedia = await handleIncomingMedia(m, conn);
+                if (handledMedia) return;
+            }
 
             // Flujo 1: Pedir y almacenar el nombre
             if (user.chatState === 'initial' || isNewUser || isInactive) {
@@ -452,12 +456,12 @@ export async function handler(m, conn, store) {
                     } else if (nombreEsMatch && nombreEsMatch[1]) {
                         name = nombreEsMatch[1].trim();
                     } else {
-                        // Si no coincide con las frases, toma la primera palabra como nombre
                         name = messageTextLower.split(' ')[0];
                     }
 
                     if (name) {
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
+                        chatData[m.sender] = userChatData;
                         saveChatData(chatData);
                         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                             if (err) console.error("Error al actualizar chatState a active:", err);
