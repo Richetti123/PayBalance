@@ -39,7 +39,6 @@ let hasResetOnStartup = false;
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
     clearTimeout(this);
-    resolve();
 }, ms));
 
 const configBotPath = path.join(__dirname, 'src', 'configbot.json');
@@ -226,6 +225,24 @@ export async function handler(m, conn, store) {
             chalk.white(`${rawText || ' (Sin texto legible) '}`)
         );
 
+        // Pre-procesamiento para manejar el texto de los botones como comandos
+        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
+            const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+            m.text = rowId;
+            m.isCmd = true;
+            m.command = rowId.split(' ')[0].replace(m.prefix, '');
+        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
+            const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
+            m.text = buttonId;
+            m.isCmd = true;
+            m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+        } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
+             const buttonId = m.message.templateButtonReplyMessage.selectedId;
+             m.text = buttonId;
+             m.isCmd = true;
+             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+        }
+
         m = smsg(conn, m);
 
         if (!m.sender) {
@@ -387,7 +404,6 @@ export async function handler(m, conn, store) {
                     await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'getfaq':
-                    // Eliminar el prefijo del texto del comando para la búsqueda de FAQ
                     const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
                     await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
                     break;
@@ -404,7 +420,7 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return; // Se detiene la ejecución si se detecta un comando
+            return;
         }
 
         // Lógica del Asistente Virtual (Se ejecuta solo si no es un comando)
@@ -421,23 +437,28 @@ export async function handler(m, conn, store) {
                 return;
             } else if (user.chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
-                    let name = messageTextLower;
-                    const soyMatch = messageTextLower.match(/^soy\s+(.*?)$/);
-                    const nombreEsMatch = messageTextLower.match(/^mi nombre es\s+(.*?)$/);
-                    
+                    let name = '';
+                    const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
+                    const nombreEsMatch = messageTextLower.match(/^mi nombre es\s+(.*?)(?:\s+y|\s+quiero|$)/);
+
                     if (soyMatch && soyMatch[1]) {
-                        name = soyMatch[1];
+                        name = soyMatch[1].trim();
                     } else if (nombreEsMatch && nombreEsMatch[1]) {
-                        name = nombreEsMatch[1];
+                        name = nombreEsMatch[1].trim();
+                    } else {
+                        // Si no coincide con las frases, toma la primera palabra como nombre
+                        name = messageTextLower.split(' ')[0];
                     }
 
-                    userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
-                    saveChatData(chatData);
-                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                        if (err) console.error("Error al actualizar chatState a active:", err);
-                    });
-                    await sendWelcomeMessage(m, conn);
-                    return;
+                    if (name) {
+                        userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
+                        saveChatData(chatData);
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+                            if (err) console.error("Error al actualizar chatState a active:", err);
+                        });
+                        await sendWelcomeMessage(m, conn);
+                        return;
+                    }
                 }
             }
 
@@ -447,9 +468,8 @@ export async function handler(m, conn, store) {
                 // Paso 2.1: Detectar intención de pago
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
-
-                // Asegurar que el flujo de pago no se active si el mensaje es de un comando
-                if (isPaymentIntent && !m.isCmd) {
+                
+                if (isPaymentIntent) {
                     const paymentMessage = `Al momento de realizar su pago por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
@@ -459,11 +479,11 @@ export async function handler(m, conn, store) {
                 const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
                 const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
-                if ((askForPrice || askForInfo) && userChatData.lastFaqSent) {
-                    const faqKey = Object.keys(faqs).find(key => faqs[key].pregunta.toLowerCase() === userChatData.lastFaqSent.toLowerCase());
+                if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
+                    const faqKey = userChatData.lastFaqSentKey;
+                    const faq = faqs[faqKey];
                     
-                    if (faqKey) {
-                        const faq = faqs[faqKey];
+                    if (faq) {
                         let replyText = '';
                         if (askForPrice) {
                             replyText = faq.precio || `Lo siento, no tengo información de precio para "${faq.pregunta}".`;
@@ -472,7 +492,7 @@ export async function handler(m, conn, store) {
                         }
                         
                         await m.reply(replyText);
-                        delete chatData[m.sender].lastFaqSent;
+                        delete chatData[m.sender].lastFaqSentKey;
                         saveChatData(chatData);
                         return;
                     }
