@@ -244,6 +244,11 @@ export async function handler(m, conn, store) {
         if (await handlePaymentProofButton(m, conn)) {
             return;
         }
+        
+        // **NUEVO**: Llama a manejarRespuestaPago para los botones de recordatorios
+        if (await manejarRespuestaPago(m, conn)) {
+            return;
+        }
 
         if (m.isCmd) {
             if (m.isGroup) {
