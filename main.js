@@ -53,12 +53,12 @@ const __dirname = join(__filename, '..');
 // POR FAVOR, ELIMINA ESTAS LÍNEAS para evitar conflictos si las tienes duplicadas.
 global.mid = {
     methodCode1: "╔═════ᨒ═╍═╍═✦═╍═╍═ᨒ═════╗", // Este y otros ya no se usarán para el menú principal
-    methodCode2: "║  [ *SELECCIONE EL TIPO DE CONEXIÓN* ]  ║",
+    methodCode2: "║  [ *SELECCIONE EL TIPO DE CONEXIÓN* ]  ║",
     methodCode3: "OPCIÓN",
     methodCode4: "CONECTAR POR CÓDIGO QR",
     methodCode5: "CONECTAR POR CÓDIGO DE 8 DÍGITOS",
     methodCode6: "╰═▶️ SI NO SABES CÓMO ELEGIR",
-    methodCode7: "         ELIJE LA OPCIÓN 1",
+    methodCode7: "         ELIJE LA OPCIÓN 1",
     methodCode8: "PARA MÁS DETALLES, UTILICE LA LÍNEA DE COMANDOS",
     methodCode9: "node . --qr",
     methodCode10: "node . --code <numero>",
@@ -291,7 +291,7 @@ async function startBot() {
     // 1. Analizar los argumentos de línea de comandos
     const argv = yargs(process.argv.slice(2)).parse();
     
-    let phoneNumber = null; 
+    let phoneNumber = null;    
     const methodCodeQR = process.argv.includes("qr");
     const methodCode = !!phoneNumber || process.argv.includes("code");
     const MethodMobile = process.argv.includes("mobile");
@@ -332,14 +332,15 @@ async function startBot() {
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
         shouldIgnoreJid: jid => false,
-        cachedGroupMetadata: (jid) => global.conn.chats[jid] ?? {},
+        // CORRECCIÓN APLICADA AQUÍ
+        cachedGroupMetadata: (jid) => global.conn.chats?.[jid] ?? {},
         version: version,
         keepAliveIntervalMs: 55000,
         maxIdleTimeMs: 60000,
     });
 
     global.conn = sock;
-    global.conn.store = store; 
+    global.conn.store = store;    
 
     store.bind(sock.ev);
 
@@ -356,7 +357,7 @@ async function startBot() {
                 do {
                     phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
                     // Limpia el número: elimina espacios, guiones, etc.
-                    addNumber = phoneNumber.replace(/\D/g, ''); 
+                    addNumber = phoneNumber.replace(/\D/g, '');    
                     // Añade el '+' si no lo tiene (la validación ya lo hace, pero para el `requestPairingCode` es bueno asegurarlo)
                     if (!addNumber.startsWith('+')) {
                         addNumber = `+${addNumber}`;
