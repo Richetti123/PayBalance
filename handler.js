@@ -35,7 +35,7 @@ import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BOT_OWNERS = ['5217771303481', '527771303481'];
+const BOT_OWNER_NUMBER = '5217771303481';
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
 
 const inactivityTimers = {};
@@ -79,7 +79,6 @@ const saveChatData = (data) => {
     fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
-// --- NUEVO: Objeto con métodos de pago por país ---
 const countryPaymentMethods = {
     'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
     'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
@@ -177,7 +176,7 @@ const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
             title: '⭐ Nuestros Servicios',
             rows: faqsList.map((faq) => ({
                 title: faq.pregunta,
-                rowId: `${m.prefix}getfaq ${faq.pregunta}`,
+                rowId: `!getfaq ${faq.pregunta}`,
                 description: `Toca para saber más sobre: ${faq.pregunta}`
             }))
         }];
@@ -236,9 +235,9 @@ export async function handler(m, conn, store) {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
         if (m.key.remoteJid === 'status@broadcast') return;
 
-        // Primero, parsea el mensaje para obtener todas las propiedades, incluido el prefijo.
         m = smsg(conn, m);
-        m.isOwner = BOT_OWNERS.includes(m.sender.split('@')[0]);
+        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER);
+        m.prefix = '!';
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
@@ -263,8 +262,6 @@ export async function handler(m, conn, store) {
             commandFromButton = m.command;
         }
         
-        // --- NUEVO: Corrección de comandos ---
-        // Se ejecuta esta lógica antes del switch para asegurarnos que un comando se procesa siempre.
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
@@ -357,8 +354,8 @@ export async function handler(m, conn, store) {
             }, INACTIVITY_TIMEOUT_MS);
         }
         
-        // Manejo de comandos y respuestas de botones (AHORA SOLO EN GRUPOS)
-        if (m.isCmd && m.isGroup) {
+        // Manejo de comandos (ahora funciona en grupos y privados)
+        if (m.isCmd) {
             const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
             switch (m.command) {
                 case 'registrarpago':
@@ -456,9 +453,7 @@ export async function handler(m, conn, store) {
                     await resetHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                     break;
                 case 'reactivate_chat':
-                    if (!m.isGroup) {
-                        await sendWelcomeMessage(m, conn);
-                    }
+                    await sendWelcomeMessage(m, conn);
                     break;
                 case 'comprobantepago':
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -468,25 +463,35 @@ export async function handler(m, conn, store) {
                     if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                     await notificarOwnerHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                     break;
+                default:
+                    if (m.isGroup) {
+                        // Logica para manejar mensajes de texto regulares en grupos, si es necesario.
+                        // Por ahora, no hace nada y simplemente termina la ejecución.
+                    } else {
+                        // Manejo de comandos en chat privado. Si es un botón de FAQ, se procesa aquí.
+                        const commandText = m.text.slice(m.prefix.length);
+                        const isFaqCommand = commandText.startsWith('getfaq');
+                        if (isFaqCommand) {
+                            const textForFaq = commandText.substring('getfaq '.length);
+                            await getfaqHandler(m, { conn, text: textForFaq, command: 'getfaq', usedPrefix: m.prefix });
+                            return; // Se detiene la ejecución si es un comando de FAQ
+                        }
+                    }
+                    break;
             }
             return; // Se detiene la ejecución si se detecta un comando o un botón
         }
         
-        // Manejo de la lógica del asistente virtual (solo si no es un comando y no es una respuesta de botón)
-        if (m.text && !isButtonResponse && !m.isGroup) {
+        // Manejo de la lógica del asistente virtual (solo si no es un comando)
+        if (m.text && !m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
-
-            // Lógica de comprobantes de pago
-            if (await handlePaymentProof(m, conn)) {
-                return;
-            }
-
-            // Flujo 1: Pedir y almacenar el nombre
-            if (user.chatState === 'initial' || isNewUser || isInactive) {
+            
+            // Flujo de conversación (maneja el estado y las respuestas directas)
+            if (user.chatState === 'initial' || isNewUser || isInactive) {
                 await sendWelcomeMessage(m, conn, true);
                 return;
             } else if (user.chatState === 'awaitingName') {
@@ -515,11 +520,11 @@ export async function handler(m, conn, store) {
                     }
                 }
             }
-
-            // Flujo 2: Manejo de la conversación activa
-            if (user.chatState === 'active') {
-                
-                // --- NUEVO: Manejar la lógica de pago por país ANTES de la IA ---
+            // Flujo de la conversación activa
+            else if (user.chatState === 'active') {
+                if (await handlePaymentProof(m, conn)) {
+                    return;
+                }
                 const paises = Object.keys(countryPaymentMethods);
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
@@ -533,96 +538,87 @@ export async function handler(m, conn, store) {
                         const ownerNotificationMessage = `El usuario ${m.pushName} (+${m.sender.split('@')[0]}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
                         await notificarOwnerHandler(m, { conn, text: ownerNotificationMessage, command: 'notificarowner', usedPrefix: m.prefix });
                     }
-                    return; // Detiene la ejecución para no caer en la IA
+                    return;
+                }
+
+                const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
+                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
+                if (isPaymentIntent) {
+                    const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
+                    await m.reply(paymentMessage);
+                    return;
                 }
                 
-                // Paso 2.1: Detectar intención de pago (si no se encontró un país)
-                const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
-                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
-                
-                if (isPaymentIntent) {
-                    const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
-                    await m.reply(paymentMessage);
-                    return;
-                }
-                
-                // Paso 2.2: Manejar preguntas de precio/información contextual
-                const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
-                const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
+                const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
+                const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
-                if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
-                    const faqKey = userChatData.lastFaqSentKey;
-                    const faq = faqs[faqKey];
-                    
-                    if (faq) {
-                        let replyText = '';
-                        if (askForPrice) {
-                            replyText = faq.precio || `Lo siento, no tengo información de precio para "${faq.pregunta}".`;
-                        } else if (askForInfo) {
-                            replyText = `Claro, aquí tienes más información sobre el servicio "${faq.pregunta}":\n\n${faq.respuesta}`;
-                        }
-                        
-                        await m.reply(replyText);
-                        delete chatData[m.sender].lastFaqSentKey;
-                        saveChatData(chatData);
-                        return;
-                    }
-                }
-                
-                // Paso 2.3: Si nada de lo anterior coincide, usar la IA
-                try {
-                    const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-
-                    const paymentMethods = {
-                        '🇲🇽': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
-                        '🇵🇪': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
-                        '🇨🇱': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
-                        '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
-                    };
-
-                    const methodsList = Object.values(paymentMethods).join('\n\n');
-
-                    const clientInfoPrompt = !!paymentsData[m.sender] ?
-                        `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[m.sender].nombre}, Día de pago: ${paymentsData[m.sender].diaPago}, Monto: ${paymentsData[m.sender].monto}, Bandera: ${paymentsData[m.sender].bandera}. Su estado es ${paymentsData[m.sender].suspendido ? 'suspendido' : 'activo'}.` :
-                        `El usuario no es un cliente existente. Es un cliente potencial.`;
-
-                    const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
-                        `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
-                        `No hay datos previos de conversación con este usuario.`;
-                    
-                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
-                    
-                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
-                    
-                    Instrucciones:
-                    - Responde de forma concisa, útil y profesional.
-                    - Si te preguntan por métodos de pago, usa esta lista: ${methodsList}
-                    - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
-                    - No proporciones información personal ni financiera sensible.
-                    - No inventes precios. Si te preguntan por el precio de un servicio, informa que revisen la lista de servicios.
-                    - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
-                    
-                    - Has aprendido que tus servicios son:
-                      - MichiBot exclusivo (pago mensual): Un bot de WhatsApp con gestión de grupos, descargas de redes sociales, IA, stickers y más.
-                      - Bot personalizado (pago mensual): Similar a MichiBot, pero con personalización de tus datos y logo.
-                      - Bot personalizado (único pago): La misma versión personalizada, pero con un solo pago.
-                      - CashFlow: Un bot de gestión de clientes para seguimiento de pagos y recordatorios automáticos.`;
-                    
-                    const encodedContent = encodeURIComponent(personaPrompt);
-                    const encodedText = encodeURIComponent(m.text);
-                    const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
-                    const json = await apiii.json();
-                    if (json.resultado) {
-                        m.reply(json.resultado);
-                    } else {
-                        m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
-                    }
-                } catch (e) {
-                    console.error("Error en la llamada a la API de IA:", e);
-                    m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
-                }
-            }
-        }
+                if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
+                    const faqKey = userChatData.lastFaqSentKey;
+                    const faq = faqs[faqKey];
+                    if (faq) {
+                        let replyText = '';
+                        if (askForPrice) {
+                            replyText = faq.precio || `Lo siento, no tengo información de precio para "${faq.pregunta}".`;
+                        } else if (askForInfo) {
+                            replyText = `Claro, aquí tienes más información sobre el servicio "${faq.pregunta}":\n\n${faq.respuesta}`;
+                        }
+                        await m.reply(replyText);
+                        delete chatData[m.sender].lastFaqSentKey;
+                        saveChatData(chatData);
+                        return;
+                    }
+                }
+                
+                // Si nada de lo anterior coincide, usar la IA
+                try {
+                    const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+                    const paymentMethods = {
+                        '🇲🇽': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+                        '🇵🇪': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+                        '🇨🇱': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
+                        '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
+                    };
+                    const methodsList = Object.values(paymentMethods).join('\n\n');
+                    const clientInfoPrompt = !!paymentsData[m.sender] ?
+                        `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[m.sender].nombre}, Día de pago: ${paymentsData[m.sender].diaPago}, Monto: ${paymentsData[m.sender].monto}, Bandera: ${paymentsData[m.sender].bandera}. Su estado es ${paymentsData[m.sender].suspendido ? 'suspendido' : 'activo'}.` :
+                        `El usuario no es un cliente existente. Es un cliente potencial.`;
+                    const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
+                        `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
+                        `No hay datos previos de conversación con este usuario.`;
+                        
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
+                    
+                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
+                    
+                    Instrucciones:
+                    - Responde de forma concisa, útil y profesional.
+                    - Si te preguntan por métodos de pago, usa esta lista: ${methodsList}
+                    - Si el usuario pregunta por un método de pago específico o por su fecha de corte, informa que debe consultar con el proveedor de servicio.
+                    - No proporciones información personal ni financiera sensible.
+                    - No inventes precios. Si te preguntan por el precio de un servicio, informa que revisen la lista de servicios.
+                    - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
+                    
+                    - Has aprendido que tus servicios son:
+                    - MichiBot exclusivo (pago mensual): Un bot de WhatsApp con gestión de grupos, descargas de redes sociales, IA, stickers y más.
+                    - Bot personalizado (pago mensual): Similar a MichiBot, pero con personalización de tus datos y logo.
+                    - Bot personalizado (único pago): La misma versión personalizada, pero con un solo pago.
+                    - CashFlow: Un bot de gestión de clientes para seguimiento de pagos y recordatorios automáticos.`;
+                    
+                    const encodedContent = encodeURIComponent(personaPrompt);
+                    const encodedText = encodeURIComponent(m.text);
+                    const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
+                    const json = await apiii.json();
+                    if (json.resultado) {
+                        m.reply(json.resultado);
+                    } else {
+                        m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
+                    }
+                } catch (e) {
+                    console.error("Error en la llamada a la API de IA:", e);
+                    m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
+                }
+            }
+        }
     } catch (e) {
         console.error(e);
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
