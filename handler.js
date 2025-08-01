@@ -190,6 +190,30 @@ export async function handler(m, conn, store) {
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
+        
+        // Extraer texto de botones de lista y de plantillas
+        let isButtonResponse = false;
+        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
+            const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+            m.text = rowId;
+            m.isCmd = true;
+            m.command = rowId.split(' ')[0].replace(m.prefix, '');
+            isButtonResponse = true;
+        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
+            const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
+            m.text = buttonId;
+            m.isCmd = true;
+            m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+            isButtonResponse = true;
+        } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
+             const buttonId = m.message.templateButtonReplyMessage.selectedId;
+             m.text = buttonId;
+             m.isCmd = true;
+             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
+             isButtonResponse = true;
+        }
+
+        m = smsg(conn, m);
 
         let senderJid = m.sender || m.key?.participant || m.key?.remoteJid;
         senderJid = String(senderJid);
@@ -225,25 +249,6 @@ export async function handler(m, conn, store) {
             chalk.white(`${rawText || ' (Sin texto legible) '}`)
         );
 
-        // Pre-procesamiento para manejar el texto de los botones como comandos
-        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
-            const rowId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
-            m.text = rowId;
-            m.isCmd = true;
-            m.command = rowId.split(' ')[0].replace(m.prefix, '');
-        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
-            const buttonId = m.message.buttonsResponseMessage.selectedButtonId;
-            m.text = buttonId;
-            m.isCmd = true;
-            m.command = buttonId.split(' ')[0].replace(m.prefix, '');
-        } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-             const buttonId = m.message.templateButtonReplyMessage.selectedId;
-             m.text = buttonId;
-             m.isCmd = true;
-             m.command = buttonId.split(' ')[0].replace(m.prefix, '');
-        }
-
-        m = smsg(conn, m);
 
         if (!m.sender) {
             console.warn('Mensaje procesado por smsg sin un m.sender válido. Ignorando.');
@@ -404,6 +409,7 @@ export async function handler(m, conn, store) {
                     await faqHandler(m, { conn, text: m.text.slice(prefix.length + (m.command ? m.command.length + 1 : 0)).trim(), command: m.command, usedPrefix: prefix });
                     break;
                 case 'getfaq':
+                    // Eliminar el prefijo del texto del comando para la búsqueda de FAQ
                     const faqText = m.text.slice(m.text.startsWith(prefix) ? prefix.length + m.command.length : m.command.length).trim();
                     await getfaqHandler(m, { conn, text: faqText, command: m.command, usedPrefix: prefix });
                     break;
@@ -420,11 +426,11 @@ export async function handler(m, conn, store) {
                     }
                     break;
             }
-            return;
+            return; // Se detiene la ejecución si se detecta un comando
         }
-
-        // Lógica del Asistente Virtual (Se ejecuta solo si no es un comando)
-        if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
+        
+        // Lógica del Asistente Virtual (Se ejecuta solo si no es un comando y no es una respuesta de botón)
+        if (m.text && !user.awaitingPaymentResponse && !m.isGroup && !isButtonResponse) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
