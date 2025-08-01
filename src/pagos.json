@@ -1,1 +1,379 @@
-{}
+{
+  "+5492944921597": {
+    "nombre": "Luciano",
+    "diaPago": 1,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5213521250095": {
+    "nombre": "CDN",
+    "diaPago": 1,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$180",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+18093040329": {
+    "nombre": "Natham",
+    "diaPago": 3,
+    "bandera": "🇺🇸",
+    "pagos": [
+      {
+        "monto": "$8",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+59164087881": {
+    "nombre": "Alejandra",
+    "diaPago": 4,
+    "bandera": "🇵🇪",
+    "pagos": [
+      {
+        "monto": "S/10",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56979166293": {
+    "nombre": "Carolina",
+    "diaPago": 5,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5215566834948": {
+    "nombre": "Connect",
+    "diaPago": 5,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$180",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56985836955": {
+    "nombre": "Victoria",
+    "diaPago": 7,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+51926289758": {
+    "nombre": "Abraham",
+    "diaPago": 8,
+    "bandera": "🇵🇪",
+    "pagos": [
+      {
+        "monto": "S/10",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5492244463903": {
+    "nombre": "Anahí",
+    "diaPago": 8,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56975783433": {
+    "nombre": "Alex",
+    "diaPago": 9,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "XXXXXXXXXXX_8": {
+    "nombre": "Tamy",
+    "diaPago": 14,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5492966415664": {
+    "nombre": "Julz",
+    "diaPago": 14,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5217731161701": {
+    "nombre": "LeoNet",
+    "diaPago": 14,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$200",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56992838017": {
+    "nombre": "Kathy",
+    "diaPago": 15,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$10000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+51964767711": {
+    "nombre": "Richi",
+    "diaPago": 16,
+    "bandera": "🇵🇪",
+    "pagos": [
+      {
+        "monto": "S/10",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5491127433686": {
+    "nombre": "Mxlon",
+    "diaPago": 18,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$8000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5491162210713": {
+    "nombre": "Maluco",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5492612653970": {
+    "nombre": "Nadya",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5491165596104": {
+    "nombre": "Mili",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5219651105369": {
+    "nombre": "Jimin",
+    "diaPago": 21,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$80",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56941105558": {
+    "nombre": "Ariel",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5493436117129": {
+    "nombre": "Erica",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5492966785781": {
+    "nombre": "Daniela",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5493815442804": {
+    "nombre": "Hernan",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$3000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+527772668134": {
+    "nombre": "Sebastian",
+    "diaPago": 21,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$1080",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5491128475440": {
+    "nombre": "Luchi",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$8000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+56935582935": {
+    "nombre": "Dani",
+    "diaPago": 21,
+    "bandera": "🇨🇱",
+    "pagos": [
+      {
+        "monto": "$8000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5218134698139": {
+    "nombre": "Thoru",
+    "diaPago": 21,
+    "bandera": "🇲🇽",
+    "pagos": [
+      {
+        "monto": "$180",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  },
+  "+5492213165900": {
+    "nombre": "Milu",
+    "diaPago": 21,
+    "bandera": "🇦🇷",
+    "pagos": [
+      {
+        "monto": "$8000",
+        "fecha": "2025-08-01",
+        "confirmado": false,
+        "idComprobante": null
+      }
+    ]
+  }
+}
