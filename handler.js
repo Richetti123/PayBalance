@@ -356,8 +356,8 @@ export async function handler(m, conn, store) {
             }, INACTIVITY_TIMEOUT_MS);
         }
         
-        // Manejo de comandos y respuestas de botones
-        if (m.isCmd) {
+        // Manejo de comandos y respuestas de botones (AHORA SOLO EN GRUPOS)
+        if (m.isCmd && m.isGroup) {
             const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
             switch (m.command) {
                 case 'registrarpago':
