@@ -6,7 +6,7 @@ import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { handlePaymentProofButton, manejarRespuestaPago } from './lib/respuestapagos.js'; // <-- Importación corregida
+import { handlePaymentProofButton, manejarRespuestaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js';
@@ -371,6 +371,19 @@ export async function handler(m, conn, store) {
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
+
+            // Corrección: Obtener el objeto `user` de la base de datos
+            const user = await new Promise((resolve, reject) => {
+                global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                    if (err) {
+                        console.error('Error al obtener el usuario de la base de datos:', err);
+                        return resolve({});
+                    }
+                    resolve(doc || {});
+                });
+            });
+            const isNewUser = Object.keys(user).length === 0;
+            const isInactive = user.chatState === 'initial';
 
             if (user.chatState === 'initial' || isNewUser || isInactive) {
                 await sendWelcomeMessage(m, conn, true);
