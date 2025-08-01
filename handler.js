@@ -492,6 +492,22 @@ export async function handler(m, conn, store) {
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
+                if (m.message && m.message.buttonsResponseMessage && m.isOwner) {
+                    const selectedId = m.message.buttonsResponseMessage.selectedButtonId;
+                    if (selectedId.startsWith('accept_payment_')) {
+                        const clientJid = selectedId.replace('accept_payment_', '');
+                        const responseMessage = '✅ ¡Genial! Tu pago ha sido aceptado. En un momento el creador se comunicará contigo para la entrega del servicio que compraste.';
+                        await conn.sendMessage(clientJid, { text: responseMessage });
+                        await m.reply(`✅ Comprobante aceptado. Se notificó al cliente ${clientJid}.`);
+                        return;
+                    } else if (selectedId.startsWith('reject_payment_')) {
+                        const clientJid = selectedId.replace('reject_payment_', '');
+                        const responseMessage = '❌ ¡Importante! Mi creador ha rechazado este comprobante de pago, tal vez porque es falso o porque la transferencia no se recibió. De igual manera, en un momento se comunicará contigo para resolver este problema.';
+                        await conn.sendMessage(clientJid, { text: responseMessage });
+                        await m.reply(`❌ Comprobante rechazado. Se notificó al cliente ${clientJid}.`);
+                        return;
+                    }
+                }
 
                 // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
                 const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
