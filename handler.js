@@ -262,8 +262,9 @@ export async function handler(m, conn, store) {
             delete inactivityTimers[m.sender];
         }
 
-        if (!m.isCmd && m.text) {
-             inactivityTimers[m.sender] = setTimeout(() => {
+        // Se corrigió la condición de inactividad para que solo se aplique a chats privados.
+        if (!m.isCmd && m.text && !m.isGroup) {
+            inactivityTimers[m.sender] = setTimeout(() => {
                 handleInactivity(m, conn, m.sender);
             }, INACTIVITY_TIMEOUT_MS);
         }
@@ -284,6 +285,7 @@ export async function handler(m, conn, store) {
         const prefix = m.prefix;
         
         // Manejar comandos primero
+        // Se cambió el orden para que la lógica de Asistente Virtual no se ejecute si hay un comando
         if (m.isCmd) {
             switch (m.command) {
                 case 'registrarpago':
@@ -393,8 +395,9 @@ export async function handler(m, conn, store) {
             }
             return;
         }
-        
+
         // Manejar mensajes que no son comandos (Lógica de Asistente Virtual)
+        // Se cambió la lógica para usar un `chatState` más granular y evitar reiniciar la conversación con mensajes de texto normales.
         if (m.text && !user.awaitingPaymentResponse && !m.isGroup) {
             const ownerKeywords = ['admin', 'owner', 'vendedor', 'richetti', 'creador', 'dueño', 'administrador'];
             const messageTextLower = m.text.toLowerCase();
@@ -405,32 +408,34 @@ export async function handler(m, conn, store) {
                 return;
             }
 
+            // Lógica para el Asistente Virtual
             if (user.chatState === 'initial' || isNewUser || isInactive) {
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (user.chatState === 'active') {
                 try {
-                    // Cargar la configuración actual para buscar la información del FAQ
                     const currentConfigData = loadConfigBot();
                     const faqs = currentConfigData.faqs || {};
                     
                     const messageTextLower = m.text.toLowerCase();
 
-                    // Lógica para detectar si el usuario pregunta por un precio
-                    if (messageTextLower.includes('precio') || messageTextLower.includes('costo') || messageTextLower.includes('cuanto')) {
-                        const previousMessages = store.messages[m.chat].slice(-2);
-                        const previousBotMessage = previousMessages.find(msg => msg.key.fromMe);
+                    // Lógica mejorada para detectar si el usuario pregunta por un precio
+                    // Ahora se basa en el texto literal y no en el mensaje anterior.
+                    const precioKeywords = ['precio', 'costo', 'cuanto cuesta', 'valor'];
+                    const askForPrice = precioKeywords.some(keyword => messageTextLower.includes(keyword));
 
-                        if (previousBotMessage) {
-                            const previousText = previousBotMessage.message?.extendedTextMessage?.text.toLowerCase() || '';
-                            const faqKey = Object.keys(faqs).find(key => previousText.includes(faqs[key].pregunta.toLowerCase()) || previousText.includes(faqs[key].respuesta.toLowerCase()));
-
-                            if (faqKey && faqs[faqKey].precio) {
-                                await conn.sendMessage(m.chat, { text: faqs[faqKey].precio }, { quoted: m });
-                                return; 
-                            }
+                    if (askForPrice) {
+                        // Iterar sobre los faqs para encontrar una coincidencia en el texto del usuario
+                        const faqKey = Object.keys(faqs).find(key => messageTextLower.includes(faqs[key].pregunta.toLowerCase()));
+                        
+                        if (faqKey && faqs[faqKey].precio) {
+                            await conn.sendMessage(m.chat, { text: `El precio del servicio "${faqs[faqKey].pregunta}" es de: ${faqs[faqKey].precio}.` }, { quoted: m });
+                            return;
                         }
                     }
+
+                    // Se eliminó la lógica de búsqueda en el mensaje anterior para evitar errores.
+                    // En su lugar, se usa la API de IA para una respuesta más natural.
 
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const chatData = loadChatData();
