@@ -35,7 +35,7 @@ import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js'
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const BOT_OWNER_NUMBER = '5217771303481';
+const BOT_OWNERS = ['5217771303481', '527771303481'];
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
 
 const inactivityTimers = {};
@@ -238,7 +238,7 @@ export async function handler(m, conn, store) {
 
         // Primero, parsea el mensaje para obtener todas las propiedades, incluido el prefijo.
         m = smsg(conn, m);
-        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER);
+        m.isOwner = BOT_OWNERS.includes(m.sender.split('@')[0]);
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
