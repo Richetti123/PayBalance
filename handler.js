@@ -1,4 +1,3 @@
-// handler.js corregido
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
@@ -83,8 +82,6 @@ const saveChatData = (data) => {
 const countryPaymentMethods = {
     'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
     'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
-    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
-    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
     'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
     'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`,
     'bolivia': ``,
@@ -134,7 +131,7 @@ const handleInactivity = async (m, conn, userId) => {
             title: '❓ Retomar Conversación',
             rows: [{
                 title: '➡️ Reactivar Chat',
-                rowId: `${m.prefix}reactivate_chat`,
+                rowId: `.reactivate_chat`,
                 description: 'Pulsa aquí para iniciar una nueva conversación.'
             }]
         }];
@@ -156,6 +153,14 @@ const handleInactivity = async (m, conn, userId) => {
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
     }
+};
+
+const handleGoodbye = async (m, conn, userId) => {
+    try {
+        await handleInactivity(m, conn, userId);
+    } catch (e) {
+        console.error('Error al manejar la despedida:', e);
+    }
 };
 
 const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
@@ -213,7 +218,7 @@ export async function handler(m, conn, store) {
 
         m = smsg(conn, m);
         m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
-        m.prefix = '!';
+        m.prefix = '.';
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
@@ -430,7 +435,7 @@ export async function handler(m, conn, store) {
                         await notificarOwnerHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     default:
-                        m.reply('❌ Comando no reconocido. Escribe !ayuda para ver la lista de comandos.');
+                        m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
                         break;
                 }
             } else {
@@ -476,6 +481,15 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (user.chatState === 'active') {
+
+                const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
+                const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
+
+                if (isGoodbye) {
+                    await handleGoodbye(m, conn, m.sender);
+                    return;
+                }
+
                 // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
                 const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
                 const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
@@ -561,7 +575,7 @@ export async function handler(m, conn, store) {
                         
                     const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
-                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.JSON.stringify(userChatData)}.
+                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
                     
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
@@ -597,6 +611,7 @@ export async function handler(m, conn, store) {
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
+
 // Observador para cambios en archivos (útil para el desarrollo)
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
