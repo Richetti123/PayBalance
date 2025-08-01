@@ -1,6 +1,7 @@
 import { generateWAMessageFromContent } from '@whiskeysockets/baileys';
 import { smsg } from './lib/simple.js';
 import { format } from 'util';
+import { fileURLToPath } from 'url';
 import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
@@ -28,8 +29,12 @@ import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
 import { handler as registrarPagoHandler } from './plugins/registrarpago.js';
 import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
-import { handler as recordatorioHandler } from './plugins/recordatorios.js'; // Ruta corregida
+import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
+
+// **Corregido**: Definición de __filename y __dirname para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const BOT_OWNER_NUMBER = '5217771303481';
 const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000;
