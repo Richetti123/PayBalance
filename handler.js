@@ -83,8 +83,6 @@ const saveChatData = (data) => {
 const countryPaymentMethods = {
     'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
     'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
-    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
-    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
     'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
     'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`,
     'bolivia': ``,
@@ -93,7 +91,6 @@ const countryPaymentMethods = {
     'estados unidos': ``,
     'puerto rico': ``,
     'panamá': ``,
-    'panama': ``,
     'uruguay': ``,
     'colombia': ``
 };
@@ -241,7 +238,7 @@ export async function handler(m, conn, store) {
         if (m.key.remoteJid === 'status@broadcast') return;
 
         m = smsg(conn, m);
-        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER);
+        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant.startsWith(BOT_OWNER_NUMBER));
         m.prefix = '!';
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
