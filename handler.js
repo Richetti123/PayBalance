@@ -238,7 +238,7 @@ export async function handler(m, conn, store) {
 
         // Primero, parsea el mensaje para obtener todas las propiedades, incluido el prefijo.
         m = smsg(conn, m);
-        m.isOwner = m.sender === BOT_OWNER_JID;
+        m.isOwner = m.sender.split('@')[0] === BOT_OWNER_JID.split('@')[0];
 
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
