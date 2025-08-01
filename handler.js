@@ -28,7 +28,7 @@ import { handler as notificarOwnerHandler } from './plugins/notificarowner.js';
 import { handler as registrarPagoHandler } from './plugins/registrarpago.js';
 import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
-import { handler as recordatorioHandler } from './plugins/plugins/recordatorios.js';
+import { handler as recordatorioHandler } from './plugins/recordatorios.js'; // Ruta corregida
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 
 const BOT_OWNER_NUMBER = '5217771303481';
