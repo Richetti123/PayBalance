@@ -31,7 +31,7 @@ import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
-import { handler as updateHandler } from './plugins/update.js';
+import { handler as updateHandler } from './plugins/update.js'; // <-- Importación corregida
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -205,7 +205,7 @@ export async function handler(m, conn, store) {
             m.text = m.message.templateButtonReplyMessage.selectedId;
         }
 
-        // **PASO 1 (MÁXIMA PRIORIDAD):** Manejar los clics de botones de pago
+        // **CORRECCIÓN CLAVE:** Priorizar las respuestas a los botones de pago al inicio
         if (await handlePaymentProofButton(m, conn)) {
             return;
         }
@@ -214,7 +214,7 @@ export async function handler(m, conn, store) {
             return;
         }
         
-        // **PASO 2 (ALTA PRIORIDAD):** Manejar los comprobantes de pago enviados como archivos/imágenes
+        // **CORRECCIÓN CLAVE:** Priorizar los comprobantes de pago enviados como archivos/imágenes
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
@@ -373,7 +373,6 @@ export async function handler(m, conn, store) {
                 });
             });
 
-            // **CORRECCIÓN:** Lógica simplificada para el estado del chat para evitar interferencia
             const chatState = user?.chatState || 'initial';
 
             if (chatState === 'initial') {
