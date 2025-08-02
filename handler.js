@@ -204,19 +204,21 @@ export async function handler(m, conn, store) {
             m.text = m.message.templateButtonReplyMessage.selectedId;
         }
 
+        // **CORRECCIÓN PRINCIPAL**: Mover la lógica de manejo de botones de pago al inicio
+        // para evitar que el chatbot interfiera.
+        if (await handlePaymentProofButton(m, conn)) {
+            return;
+        }
+
+        if (await manejarRespuestaPago(m, conn)) {
+            return;
+        }
+
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
         
-        if (await handlePaymentProofButton(m, conn)) {
-            return;
-        }
-        
-        if (await manejarRespuestaPago(m, conn)) {
-            return;
-        }
-
         if (m.isCmd) {
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
@@ -354,7 +356,6 @@ export async function handler(m, conn, store) {
                 });
             });
 
-            // **CORREGIDO**: Lógica simplificada para el estado del chat
             const chatState = user?.chatState || 'initial';
 
             if (chatState === 'initial') {
