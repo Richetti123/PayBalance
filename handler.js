@@ -223,13 +223,14 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
-    // Asignación de variables para el log visual
-    const rawText = m.text || '';
+// Asignación de variables para el log visual (corregido)
+    const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || '';
     const messageType = Object.keys(m.message || {})[0];
     const senderName = m.pushName || 'Desconocido';
     const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
     const groupName = m.isGroup ? m.groupMetadata?.subject || 'Desconocido' : 'Chat Privado';
-    const commandForLog = m.text && m.text.startsWith(m.prefix) ? m.text.split(' ')[0] : null;
+    // El comando se basa en la nueva variable rawText
+    const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
 
     // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
     console.log(
@@ -238,13 +239,12 @@ export async function handler(m, conn, store) {
         chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
         chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
         chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-        chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' + 
+        chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
         chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
         chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-        chalk.white(`${rawText || ' (Sin texto legible) '}`)
+        chalk.white(`${rawText || ' (Sin texto legible) '}`) // rawText ahora contendrá el texto real o una cadena vacía.
     );
     // --- FIN: Bloque para logging visual ---
-
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
         if (m.key.remoteJid === 'status@broadcast') return;
