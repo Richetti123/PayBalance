@@ -27,15 +27,19 @@ export async function sendAutomaticPaymentRemindersLogic(client) {
         if (fs.existsSync(paymentsFilePath)) {
             clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
         } else {
-            fs.writeFileSync(paymentsFilePath, JSON.stringify({}, null, 2), 'utf8'); // Crea el archivo si no existe
+            fs.writeFileSync(paymentsFilePath, JSON.stringify({}, null, 2), 'utf8');
         }
 
         const clientsToSendReminders = [];
 
         for (const phoneNumberKey in clientsData) {
             const clientInfo = clientsData[phoneNumberKey];
-            const numero = phoneNumberKey; // El número puro, e.g., '5217771234567'
-            const { diaPago, monto, bandera, nombre } = clientInfo;
+            const numero = phoneNumberKey;
+
+            // --- CORRECCIÓN EN LA LECTURA DEL MONTO ---
+            const { diaPago, bandera, nombre } = clientInfo;
+            const monto = clientInfo.pagos && clientInfo.pagos.length > 0 ? clientInfo.pagos[0].monto : 'un monto no especificado';
+            // --- FIN DE LA CORRECCIÓN ---
 
             if (!numero) continue;
 
@@ -113,12 +117,8 @@ Enlace: https://paypal.me/richetti123`;
             const { formattedNumber, buttonMessage, nombre, numero } = clientsToSendReminders[i];
 
             try {
-                // console.log(`[DEBUG - Auto] Intentando enviar recordatorio a: ${formattedNumber}`); // Comentado
                 await client.sendMessage(formattedNumber, buttonMessage);
-                // console.log(`[DEBUG - Auto] Recordatorio enviado exitosamente a: ${formattedNumber}`); // Comentado
 
-                // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse ---
-                // Obtener el documento del usuario de Nedb
                 let userDoc = await new Promise((resolve, reject) => {
                     global.db.data.users.findOne({ id: formattedNumber }, (err, doc) => {
                         if (err) return reject(err);
@@ -127,22 +127,16 @@ Enlace: https://paypal.me/richetti123`;
                 });
 
                 if (userDoc) {
-                    // Si el usuario ya existe, actualizarlo
                     userDoc.awaitingPaymentResponse = true;
                     userDoc.paymentClientName = nombre;
                     userDoc.paymentClientNumber = numero;
                     await new Promise((resolve, reject) => {
                         global.db.data.users.update({ id: formattedNumber }, { $set: userDoc }, {}, (err) => {
-                            if (err) {
-                                // console.error('Error actualizando usuario en DB tras recordatorio:', err); // Comentado
-                                return reject(err);
-                            }
-                            // console.log(`[DEBUG] Estado de awaitingPaymentResponse para ${formattedNumber} establecido a true.`); // Comentado
+                            if (err) return reject(err);
                             resolve();
                         });
                     });
                 } else {
-                    // Si el usuario no existe, insertarlo
                     userDoc = {
                         id: formattedNumber,
                         awaitingPaymentResponse: true,
@@ -151,26 +145,16 @@ Enlace: https://paypal.me/richetti123`;
                     };
                     await new Promise((resolve, reject) => {
                         global.db.data.users.insert(userDoc, (err, newDoc) => {
-                            if (err) {
-                                // console.error('Error insertando usuario en DB tras recordatorio:', err); // Comentado
-                                return reject(err);
-                            }
-                            // console.log(`[DEBUG] Nuevo usuario ${formattedNumber} insertado con awaitingPaymentResponse a true.`); // Comentado
+                            if (err) return reject(err);
                             resolve(newDoc);
                         });
                     });
                 }
-
                 await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio automático enviado a *${nombre}* (+${numero}).` });
-                // console.log(`[DEBUG - Auto] Confirmación enviada a admin para ${formattedNumber}.`); // Comentado
-
             } catch (sendError) {
-                // console.error(`[ERROR - Auto] Falló el envío de recordatorio a ${formattedNumber}:`, sendError); // Comentado
                 try {
-                    await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `❌ Falló el recordatorio automático a *${nombre}* (${numero}). Error: ${sendError.message || sendError}` });
-                } catch (adminSendError) {
-                    // console.error(`[ERROR - Auto] Falló el envío de error al admin para ${formattedNumber}:`, adminSendError); // Comentado
-                }
+                    await client.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `❌ Falló el recordatorio automático a *${nombre}* (+${numero}). Error: ${sendError.message || sendError}` });
+                } catch (adminSendError) {}
             }
 
             if (i < clientsToSendReminders.length - 1) {
@@ -178,15 +162,13 @@ Enlace: https://paypal.me/richetti123`;
             }
         }
 
-    } catch (error) {
-        // console.error('Error general en sendAutomaticPaymentRemindersLogic:', error); // Comentado
-    }
+    } catch (error) {}
 }
 
 
 // Este es el handler para el comando del bot (por ejemplo, cuando alguien escribe "!recordatorio Marcelo")
 export async function handler(m, { conn, text, command, usedPrefix }) {
-    const clientNameInput = text.trim(); // El input del usuario es el nombre
+    const clientNameInput = text.trim();
 
     try {
         const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json');
@@ -194,7 +176,6 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         if (fs.existsSync(paymentsFilePath)) {
             clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
         } else {
-            // console.log('[DEBUG - Manual] pagos.json no encontrado.'); // Comentado
             return conn.sendMessage(m.chat, { text: '❌ El archivo `pagos.json` no se encontró.' }, { quoted: m });
         }
 
@@ -202,34 +183,30 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         let phoneNumberKey = null;
 
         if (clientNameInput) {
-            // console.log(`[DEBUG - Manual] Buscando cliente: ${clientNameInput}`); // Comentado
             for (const key in clientsData) {
                 if (clientsData[key].nombre && clientsData[key].nombre.toLowerCase() === clientNameInput.toLowerCase()) {
                     clientInfo = clientsData[key];
-                    phoneNumberKey = key; // El número puro, que es la clave en pagos.json
+                    phoneNumberKey = key;
                     break;
                 }
             }
 
             if (!clientInfo) {
-                // console.log(`[DEBUG - Manual] Cliente "${clientNameInput}" no encontrado.`); // Comentado
                 return conn.sendMessage(m.chat, { text: `❌ Cliente con nombre "${clientNameInput}" no encontrado en la base de datos de pagos.` }, { quoted: m });
             }
         } else {
-            // Si no se proporciona nombre, se ejecuta la lógica automática para todos los clientes que les toca hoy/mañana
-            // console.log('[DEBUG - Manual] No se proporcionó nombre, ejecutando recordatorios automáticos.'); // Comentado
             await conn.sendMessage(m.chat, { text: '🔄 Iniciando envío de recordatorios automáticos a todos los clientes que les toca pago hoy o mañana...' }, { quoted: m });
-            await sendAutomaticPaymentRemindersLogic(conn); // Llama a la función de lógica automática
+            await sendAutomaticPaymentRemindersLogic(conn);
             return conn.sendMessage(m.chat, { text: '✅ Proceso de recordatorios automáticos finalizado.' }, { quoted: m });
         }
+        
+        // --- CORRECCIÓN EN LA LECTURA DEL MONTO ---
+        const { diaPago, bandera, nombre } = clientInfo;
+        const monto = clientInfo.pagos && clientInfo.pagos.length > 0 ? clientInfo.pagos[0].monto : 'un monto no especificado';
+        // --- FIN DE LA CORRECCIÓN ---
 
-        // Si se especificó un cliente por nombre y se encontró, enviar recordatorio solo a ese cliente
-        const { diaPago, monto, bandera, nombre } = clientInfo;
         const numeroSinPrefijo = phoneNumberKey.replace(/\+/g, '');
         const formattedTargetNumber = numeroSinPrefijo + '@s.whatsapp.net';
-
-        // console.log(`[DEBUG - Manual] Cliente encontrado: ${nombre} (${numeroSinPrefijo}). JID de destino: ${formattedTargetNumber}`); // Comentado
-
 
         let mainReminderMessage = `¡Hola ${nombre}! 👋 Este es un recordatorio de tu pago de ${monto}.`;
         let paymentDetails = '';
@@ -285,12 +262,8 @@ Enlace: https://paypal.me/richetti123`;
             headerType: 1
         };
 
-        // console.log(`[DEBUG - Manual] Intentando enviar recordatorio a: ${formattedTargetNumber}`); // Comentado
         await conn.sendMessage(formattedTargetNumber, buttonMessage);
-        // console.log(`[DEBUG - Manual] Recordatorio manual enviado exitosamente a: ${formattedTargetNumber}`); // Comentado
 
-
-        // --- CAMBIO CLAVE AQUÍ: Actualizar Nedb para awaitingPaymentResponse en el handler manual ---
         let userDoc = await new Promise((resolve, reject) => {
             global.db.data.users.findOne({ id: formattedTargetNumber }, (err, doc) => {
                 if (err) return reject(err);
@@ -304,11 +277,7 @@ Enlace: https://paypal.me/richetti123`;
             userDoc.paymentClientNumber = numeroSinPrefijo;
             await new Promise((resolve, reject) => {
                 global.db.data.users.update({ id: formattedTargetNumber }, { $set: userDoc }, {}, (err) => {
-                    if (err) {
-                        // console.error('Error actualizando usuario en DB tras recordatorio manual:', err); // Comentado
-                        return reject(err);
-                    }
-                    // console.log(`[DEBUG] Estado de awaitingPaymentResponse para ${formattedTargetNumber} establecido a true (manual).`); // Comentado
+                    if (err) return reject(err);
                     resolve();
                 });
             });
@@ -321,31 +290,18 @@ Enlace: https://paypal.me/richetti123`;
             };
             await new Promise((resolve, reject) => {
                 global.db.data.users.insert(userDoc, (err, newDoc) => {
-                    if (err) {
-                        // console.error('Error insertando usuario en DB tras recordatorio manual:', err); // Comentado
-                        return reject(err);
-                    }
-                    // console.log(`[DEBUG] Nuevo usuario ${formattedTargetNumber} insertado con awaitingPaymentResponse a true (manual).`); // Comentado
+                    if (err) return reject(err);
                     resolve(newDoc);
                 });
             });
         }
-
-        // --- Nueva línea de depuración ---
-        // console.log(`[DEBUG - Manual] Intentando enviar confirmación a m.chat (${m.chat}).`); // Comentado
         await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (+${numeroSinPrefijo}).` }, { quoted: m });
-        // console.log(`[DEBUG - Manual] Confirmación a m.chat enviada exitosamente.`); // Comentado
-
         await conn.sendMessage(ADMIN_NUMBER_CONFIRMATION, { text: `✅ Recordatorio manual enviado a *${nombre}* (+${numeroSinPrefijo}).` });
-        // console.log(`[DEBUG - Manual] Confirmación a admin_number_confirmation enviada.`); // Comentado
-
     } catch (error) {
-        // console.error('Error al enviar recordatorio manual:', error); // Comentado
         await conn.sendMessage(m.chat, { text: `❌ Ocurrió un error interno al enviar el recordatorio: ${error.message || error}` }, { quoted: m });
     }
 }
 
-// --- Líneas que faltaban y son CRUCIALES para el comando ---
 handler.help = ['recordatorio <nombre_cliente>'];
 handler.tags = ['pagos'];
 handler.command = /^(recordatorio|recordar)$/i;
