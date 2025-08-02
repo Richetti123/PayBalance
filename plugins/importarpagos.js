@@ -14,14 +14,15 @@ let handler = async (m, { conn, isOwner }) => {
         return m.reply(`❌ Solo el propietario puede usar este comando.`);
     }
 
-    // Obtiene el mensaje citado o el mensaje actual
+    // Obtiene el mensaje citado o el mensaje actual y su contenido multimedia
     let q = m.quoted ? m.quoted : m;
-    let mime = q.mimetype || '';
-    let filename = (q.fileName || '').toLowerCase();
+    let msg = (q.msg || q);
+    let mime = msg.mimetype || msg.mediaType || '';
+    let filename = msg.fileName || '';
 
     // Verifica si el archivo adjunto es un JSON.
     // Se valida por tipo MIME o por la extensión del nombre del archivo.
-    if (!mime || (!mime.includes('json') && !filename.endsWith('.json'))) {
+    if (!mime || (!mime.includes('json') && !filename.toLowerCase().endsWith('.json'))) {
         return m.reply(`❗ Por favor, adjunta el archivo \`.json\` de pagos con el comando o responde a un mensaje que lo contenga.`);
     }
 
