@@ -79,8 +79,17 @@ Correo: estraxer2002@gmail.com`;
 Nombre: Gaston Juarez
 CBU: 4530000800011127480736`;
                         break;
+                    case '🇺🇸':
+                        paymentDetails = `\n\nPara pagar en Estados Unidos, usa:
+Nombre: Marcelo Gonzales R.
+Correo: jairg6218@gmail.com
+Enlace: https://paypal.me/richetti123`;
+                        break;
                     default:
-                        paymentDetails = '\n\nPor favor, contacta para coordinar tu pago. No se encontraron métodos de pago específicos para tu país.';
+                        paymentDetails = `\n\nPara pagar desde cualquier parte del mundo, usa paypal:
+Nombre: Marcelo Gonzales R.
+Correo: jairg6218@gmail.com
+Enlace: https://paypal.me/richetti123`;
                 }
 
                 const formattedNumber = numero.replace(/\+/g, '') + '@s.whatsapp.net';
@@ -252,8 +261,17 @@ Correo: estraxer2002@gmail.com`;
 Nombre: Gaston Juarez
 CBU: 4530000800011127480736`;
                 break;
+            case '🇺🇸':
+                paymentDetails = `\n\nPara pagar en Estados Unidos, usa:
+Nombre: Marcelo Gonzales R.
+Correo: jairg6218@gmail.com
+Enlace: https://paypal.me/richetti123`;
+                break;
             default:
-                paymentDetails = '\n\nPor favor, contacta para coordinar tu pago. No se encontraron métodos de pago específicos para tu país.';
+                paymentDetails = `\n\nPara pagar desde cualquier parte del mundo, usa paypal:
+Nombre: Marcelo Gonzales R.
+Correo: jairg6218@gmail.com
+Enlace: https://paypal.me/richetti123`;
         }
 
         const buttons = [
@@ -312,7 +330,7 @@ CBU: 4530000800011127480736`;
                 });
             });
         }
-        
+
         // --- Nueva línea de depuración ---
         // console.log(`[DEBUG - Manual] Intentando enviar confirmación a m.chat (${m.chat}).`); // Comentado
         await conn.sendMessage(m.chat, { text: `✅ Recordatorio manual enviado a *${nombre}* (+${numeroSinPrefijo}).` }, { quoted: m });
