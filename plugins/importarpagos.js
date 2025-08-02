@@ -7,14 +7,16 @@ const __dirname = path.dirname(__filename);
 
 // Ruta al archivo pagos.json que se va a sobrescribir
 // Asume que pagos.json está en 'src', y este plugin está en 'plugins'
-const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json'); 
+const paymentsFilePath = path.join(__dirname, '..', 'src', 'pagos.json');
 
 let handler = async (m, { conn, isOwner }) => {
     if (!isOwner) {
         return m.reply(`❌ Solo el propietario puede usar este comando.`);
     }
 
-    let q = m.quoted ? m.quoted : m; // Obtiene el mensaje citado o el mensaje actual
+    // Obtiene el mensaje citado. Si no hay, usa el mensaje actual.
+    // Esto es correcto para obtener el objeto con los datos del archivo.
+    let q = m.quoted ? m.quoted : m;
     let mime = (q.msg || q).mimetype || q.mediaType || '';
 
     // Verifica si el archivo adjunto es un JSON
@@ -23,8 +25,9 @@ let handler = async (m, { conn, isOwner }) => {
     }
 
     try {
-        // Descarga el buffer del archivo
-        let buffer = await q.download();
+        // Descarga el buffer del archivo utilizando conn.downloadMediaMessage
+        let buffer = await conn.downloadMediaMessage(q);
+        
         // Parsea el contenido del buffer a un objeto JavaScript
         let importedData = JSON.parse(buffer.toString('utf8'));
 
