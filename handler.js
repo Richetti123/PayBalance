@@ -194,6 +194,10 @@ export async function handler(m, conn, store) {
         m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
         m.prefix = '.';
 
+        console.log("------------------- NUEVO MENSAJE -------------------");
+        console.log("Mensaje recibido:", m.text);
+        console.log("Tipo de mensaje:", Object.keys(m.message)[0]);
+        
         // 1. Manejar respuestas de botones antes de cualquier otra cosa
         if (m.message) {
             let buttonReplyHandled = false;
@@ -201,19 +205,25 @@ export async function handler(m, conn, store) {
             if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
                 m.text = m.message.buttonsResponseMessage.selectedButtonId;
                 buttonReplyHandled = true;
+                console.log("-> Se detectó una respuesta de botón de tipo 'buttonsResponseMessage'. ID:", m.text);
             } else if (m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
                 m.text = m.message.templateButtonReplyMessage.selectedId;
                 buttonReplyHandled = true;
+                console.log("-> Se detectó una respuesta de botón de tipo 'templateButtonReplyMessage'. ID:", m.text);
             } else if (m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
                 m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
                 buttonReplyHandled = true;
+                console.log("-> Se detectó una respuesta de botón de tipo 'listResponseMessage'. ID:", m.text);
             }
 
             if (buttonReplyHandled) {
+                console.log("-> Intentando manejar el botón con handlePaymentProofButton y manejarRespuestaPago...");
                 // Procesar la respuesta del botón con las funciones de pagos.
                 if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
+                    console.log("-> La respuesta del botón fue manejada exitosamente por el flujo de pagos. Terminando el handler.");
                     return;
                 }
+                console.log("-> La respuesta del botón no fue manejada por el flujo de pagos. Continuando...");
             }
         }
 
@@ -222,8 +232,10 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
+            console.log("-> Se detectó un posible comprobante de pago (imagen/documento con palabra clave).");
             const handledMedia = await handleIncomingMedia(m, conn);
             if (handledMedia) {
+                console.log("-> El comprobante de pago fue manejado exitosamente. Terminando el handler.");
                 return;
             }
         }
@@ -235,6 +247,7 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
+            console.log("-> Se detectó un comando. Comando:", m.command);
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -354,9 +367,10 @@ export async function handler(m, conn, store) {
             }
             return;
         }
-
+        
         // --- Lógica del Asistente Virtual (solo para chats privados y si no es un botón o un comando) ---
         if (!m.isGroup) {
+            console.log("-> El mensaje no es un comando ni una respuesta de botón. Procesando con el asistente virtual...");
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
@@ -377,16 +391,20 @@ export async function handler(m, conn, store) {
             
             // Si el mensaje es un comprobante de pago, aunque no sea un botón, lo manejamos aquí como segunda verificación.
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
+                console.log("-> Se detectó un comprobante de pago en el flujo del asistente. Priorizando...");
                 await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
                 const handledMedia = await handleIncomingMedia(m, conn);
                 if (handledMedia) {
+                    console.log("-> El comprobante de pago fue manejado exitosamente. Terminando el handler.");
                     return;
                 }
             }
             if (chatState === 'initial') {
+                console.log("-> Estado de chat: 'initial'. Enviando mensaje de bienvenida.");
                 await sendWelcomeMessage(m, conn, true);
                 return;
             } else if (chatState === 'awaitingName') {
+                console.log("-> Estado de chat: 'awaitingName'. Capturando nombre del usuario.");
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -408,20 +426,24 @@ export async function handler(m, conn, store) {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
                         await sendWelcomeMessage(m, conn);
+                        console.log("-> Nombre del usuario capturado:", name);
                         return;
                     }
                 }
             } else if (chatState === 'active') {
+                console.log("-> Estado de chat: 'active'. Procesando lógica de IA/FAQ.");
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
+                    console.log("-> Se detectó una palabra clave de despedida. Manejando despedida.");
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
+                    console.log("-> La pregunta fue respondida por el sistema de FAQ. Terminando el handler.");
                     return;
                 }
 
@@ -429,6 +451,7 @@ export async function handler(m, conn, store) {
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
                 if (paisEncontrado) {
+                    console.log("-> Se detectó una consulta de método de pago para un país. País:", paisEncontrado);
                     const metodoPago = countryPaymentMethods[paisEncontrado];
                     if (metodoPago && metodoPago.length > 0) {
                         await m.reply(`¡Claro! Aquí tienes el método de pago para ${paisEncontrado}:` + metodoPago);
@@ -444,6 +467,7 @@ export async function handler(m, conn, store) {
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
+                    console.log("-> Se detectó una intención de pago. Respondiendo con instrucciones.");
                     const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
@@ -453,6 +477,7 @@ export async function handler(m, conn, store) {
                 const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
                 if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
+                    console.log("-> Se detectó una consulta de precio o más información sobre una FAQ reciente.");
                     const faqKey = userChatData.lastFaqSentKey;
                     const faq = faqs[faqKey];
                     if (faq) {
@@ -469,6 +494,7 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
+                console.log("-> El mensaje no coincide con ningún patrón. Llamando a la IA general.");
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const paymentMethods = {
@@ -524,6 +550,7 @@ export async function handler(m, conn, store) {
         console.error(e);
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
+    console.log("------------------- FIN MENSAJE -------------------");
 }
 
 // Observador para cambios en archivos (útil para el desarrollo)
