@@ -16,8 +16,8 @@ let handler = async (m, { conn, isOwner }) => {
 
     // Obtiene el mensaje citado o el mensaje actual
     let q = m.quoted ? m.quoted : m;
-    let mime = (q.msg || q).mimetype || q.mediaType || '';
-    let filename = (q.msg || q).fileName || '';
+    let mime = q.mimetype || '';
+    let filename = (q.fileName || '').toLowerCase();
 
     // Verifica si el archivo adjunto es un JSON.
     // Se valida por tipo MIME o por la extensión del nombre del archivo.
@@ -26,8 +26,9 @@ let handler = async (m, { conn, isOwner }) => {
     }
 
     try {
-        // Descarga el buffer del archivo
-        let buffer = await q.download();
+        // Descarga el buffer del archivo utilizando conn.downloadMediaMessage
+        let buffer = await conn.downloadMediaMessage(q);
+        
         // Parsea el contenido del buffer a un objeto JavaScript
         let importedData = JSON.parse(buffer.toString('utf8'));
 
