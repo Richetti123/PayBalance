@@ -216,7 +216,26 @@ export async function handler(m, conn, store) {
                 buttonReplyHandled = true;
             }
 
+            // NUEVA LÓGICA: Manejar botones específicos independientemente del estado de chat
             if (buttonReplyHandled) {
+                if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
+                    console.log('-> Se detectó el botón "He realizado el pago" fuera del flujo esperado. Manejando...');
+                    await conn.sendMessage(m.chat, {
+                        text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
+                    });
+                    await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    console.log('-> Estado de chat actualizado a awaitingPaymentProof. Finalizando.');
+                    return;
+                }
+                
+                if (m.text === '.reactivate_chat') {
+                    console.log('-> Se detectó el botón de reactivación de chat. Reseteando estado.');
+                    await sendWelcomeMessage(m, conn);
+                    console.log('-> Mensaje de bienvenida enviado. Finalizando.');
+                    return;
+                }
+                
+                // Si no es ninguno de los botones especiales, intenta manejar con las funciones existentes
                 console.log(`-> Intentando manejar el botón con handlePaymentProofButton y manejarRespuestaPago...`);
                 if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
                     console.log(`-> El botón fue manejado correctamente. Deteniendo la ejecución.`);
