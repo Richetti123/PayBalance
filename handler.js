@@ -193,30 +193,41 @@ export async function handler(m, conn, store) {
         m = smsg(conn, m);
         m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
         m.prefix = '.';
-
-        m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
-        m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
         
-        if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
-            m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
-        } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
-            m.text = m.message.buttonsResponseMessage.selectedButtonId;
-        } else if (m.message && m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-            m.text = m.message.templateButtonReplyMessage.selectedId;
-        }
+        // --- Lógica de alta prioridad para botones y comprobantes ---
 
-        // --- Lógica de alta prioridad para botones y comprobantes (revisada) ---
-        if (await handlePaymentProofButton(m, conn)) {
-            return;
-        }
-
-        if (await manejarRespuestaPago(m, conn)) {
-            return;
+        // 1. Manejar respuestas de botones antes de cualquier otra cosa
+        let buttonReplyHandled = false;
+        if (m.message) {
+            if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
+                m.text = m.message.buttonsResponseMessage.selectedButtonId;
+                buttonReplyHandled = true;
+            } else if (m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
+                m.text = m.message.templateButtonReplyMessage.selectedId;
+                buttonReplyHandled = true;
+            } else if (m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
+                m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+                buttonReplyHandled = true;
+            }
         }
         
-        // Verifica si el mensaje es una imagen o documento con el texto clave
-        const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-        const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+        if (buttonReplyHandled) {
+            // Intenta manejarlo con el flujo de pagos
+            if (await handlePaymentProofButton(m, conn)) {
+                return;
+            }
+            if (await manejarRespuestaPago(m, conn)) {
+                return;
+            }
+            // Si no fue un botón de pago, podría ser un comando.
+            if (m.text && m.text.startsWith(m.prefix)) {
+                // ... (La lógica de comandos se moverá aquí si es necesario)
+            }
+        }
+
+        // 2. Manejar comprobantes de pago como imágenes o documentos
+        const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+        const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
             const handledMedia = await handleIncomingMedia(m, conn);
@@ -225,12 +236,12 @@ export async function handler(m, conn, store) {
             }
         }
 
-        // --- Lógica para comandos ---
+        // --- Lógica para comandos (se ejecuta si no es un botón o comprobante) ---
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
-        
+
         if (m.isCmd) {
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
@@ -352,7 +363,7 @@ export async function handler(m, conn, store) {
             return;
         }
 
-        // --- Lógica del Asistente Virtual (solo para chats privados) ---
+        // --- Lógica del Asistente Virtual (solo para chats privados y si no fue un botón o un comando) ---
         if (!m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
@@ -372,16 +383,14 @@ export async function handler(m, conn, store) {
 
             const chatState = user?.chatState || 'initial';
             
-            // --- DOBLE VERIFICACIÓN de comprobantes (solución al problema) ---
-            if (isPaymentProof(messageTextLower)) {
-                await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.'); // Mensaje de confirmación inmediata
+            // Si el mensaje es un comprobante de pago, aunque no sea un botón, lo manejamos aquí como segunda verificación.
+            if (isPaymentProof(messageTextLower) && m.message?.imageMessage) {
+                await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
                 const handledMedia = await handleIncomingMedia(m, conn);
                 if (handledMedia) {
                     return;
                 }
             }
-            // --- FIN DOBLE VERIFICACIÓN ---
-
             if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn, true);
                 return;
