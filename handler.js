@@ -377,6 +377,7 @@ export async function handler(m, conn, store) {
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
+            // Corrección: Obtener el objeto `user` de la base de datos
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
@@ -388,24 +389,6 @@ export async function handler(m, conn, store) {
             });
             const isNewUser = Object.keys(user).length === 0;
             const isInactive = user.chatState === 'initial';
-
-            // ***NUEVA LÓGICA: PROCESAR COMPROBANTES CUANDO SE ESPERA UNO***
-            if (user.chatState === 'awaitingPaymentProof') {
-                const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-                const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-
-                if (esImagenConComprobante || esDocumentoConComprobante) {
-                    await handleIncomingMedia(m, conn);
-                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                        if (err) console.error("Error al actualizar chatState a active:", err);
-                    });
-                    return;
-                } else if (m.text) {
-                    // Si el usuario envía solo texto, le recordamos que se necesita una imagen/documento
-                    await m.reply("Recuerda, estoy esperando la foto o el documento de tu comprobante. Por favor, adjunta la imagen con la leyenda adecuada.");
-                    return;
-                }
-            }
 
             if (user.chatState === 'initial' || isNewUser || isInactive) {
                 await sendWelcomeMessage(m, conn, true);
