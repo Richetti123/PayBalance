@@ -193,12 +193,11 @@ export async function handler(m, conn, store) {
         m = smsg(conn, m);
         m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
         m.prefix = '.';
-        
-        // --- Lógica de alta prioridad para botones y comprobantes ---
 
         // 1. Manejar respuestas de botones antes de cualquier otra cosa
-        let buttonReplyHandled = false;
         if (m.message) {
+            let buttonReplyHandled = false;
+
             if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
                 m.text = m.message.buttonsResponseMessage.selectedButtonId;
                 buttonReplyHandled = true;
@@ -209,19 +208,12 @@ export async function handler(m, conn, store) {
                 m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
                 buttonReplyHandled = true;
             }
-        }
-        
-        if (buttonReplyHandled) {
-            // Intenta manejarlo con el flujo de pagos
-            if (await handlePaymentProofButton(m, conn)) {
-                return;
-            }
-            if (await manejarRespuestaPago(m, conn)) {
-                return;
-            }
-            // Si no fue un botón de pago, podría ser un comando.
-            if (m.text && m.text.startsWith(m.prefix)) {
-                // ... (La lógica de comandos se moverá aquí si es necesario)
+
+            if (buttonReplyHandled) {
+                // Procesar la respuesta del botón con las funciones de pagos.
+                if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
+                    return;
+                }
             }
         }
 
@@ -363,7 +355,7 @@ export async function handler(m, conn, store) {
             return;
         }
 
-        // --- Lógica del Asistente Virtual (solo para chats privados y si no fue un botón o un comando) ---
+        // --- Lógica del Asistente Virtual (solo para chats privados y si no es un botón o un comando) ---
         if (!m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
@@ -384,7 +376,7 @@ export async function handler(m, conn, store) {
             const chatState = user?.chatState || 'initial';
             
             // Si el mensaje es un comprobante de pago, aunque no sea un botón, lo manejamos aquí como segunda verificación.
-            if (isPaymentProof(messageTextLower) && m.message?.imageMessage) {
+            if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
                 const handledMedia = await handleIncomingMedia(m, conn);
                 if (handledMedia) {
