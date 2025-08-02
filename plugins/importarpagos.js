@@ -14,20 +14,20 @@ let handler = async (m, { conn, isOwner }) => {
         return m.reply(`❌ Solo el propietario puede usar este comando.`);
     }
 
-    // Obtiene el mensaje citado. Si no hay, usa el mensaje actual.
-    // Esto es correcto para obtener el objeto con los datos del archivo.
+    // Obtiene el mensaje citado o el mensaje actual
     let q = m.quoted ? m.quoted : m;
     let mime = (q.msg || q).mimetype || q.mediaType || '';
+    let filename = (q.msg || q).fileName || '';
 
-    // Verifica si el archivo adjunto es un JSON
-    if (!mime || !/json/.test(mime)) {
+    // Verifica si el archivo adjunto es un JSON.
+    // Se valida por tipo MIME o por la extensión del nombre del archivo.
+    if (!mime || (!mime.includes('json') && !filename.endsWith('.json'))) {
         return m.reply(`❗ Por favor, adjunta el archivo \`.json\` de pagos con el comando o responde a un mensaje que lo contenga.`);
     }
 
     try {
-        // Descarga el buffer del archivo utilizando conn.downloadMediaMessage
-        let buffer = await conn.downloadMediaMessage(q);
-        
+        // Descarga el buffer del archivo
+        let buffer = await q.download();
         // Parsea el contenido del buffer a un objeto JavaScript
         let importedData = JSON.parse(buffer.toString('utf8'));
 
