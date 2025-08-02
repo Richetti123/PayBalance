@@ -104,7 +104,7 @@ const handleInactivity = async (m, conn, userId) => {
     try {
         const currentConfigData = loadConfigBot();
         const farewellMessage = currentConfigData.mensajeDespedidaInactividad
-            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+            .replace(/{user}/g, m.pushName || (m.sender ? m.sender.split('@')[0] : 'usuario'))
             .replace(/{bot}/g, conn.user.name || 'Bot');
 
         const sections = [{
@@ -225,16 +225,16 @@ export async function handler(m, conn, store) {
     
     // Asignación de variables para el log visual
     const rawText = m.text || '';
-    const messageType = Object.keys(m.message)[0];
+    const messageType = Object.keys(m.message || {})[0];
     const senderName = m.pushName || 'Desconocido';
-    const senderNumber = m.sender.split('@')[0];
+    const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
     const groupName = m.isGroup ? m.groupMetadata?.subject || 'Desconocido' : 'Chat Privado';
     const commandForLog = m.text && m.text.startsWith(m.prefix) ? m.text.split(' ')[0] : null;
 
     // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
     console.log(
         chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-        chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid?.split(':')[0]?.replace(':', '') || 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+        chalk.white(`┃ ❖ Bot: ${chalk.cyan(conn.user.jid ? conn.user.jid.split(':')[0].replace(':', '') : 'N/A')} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
         chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
         chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
         chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
@@ -272,7 +272,7 @@ export async function handler(m, conn, store) {
                     await conn.sendMessage(m.chat, {
                         text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
                     });
-                    await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
                     return;
                 }
                 
@@ -500,7 +500,7 @@ export async function handler(m, conn, store) {
                     } else {
                         const noMethodMessage = `Lo siento, aún no tenemos un método de pago configurado para ${paisEncontrado}. Un moderador se pondrá en contacto contigo lo antes posible para ayudarte.`;
                         await m.reply(noMethodMessage);
-                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${m.sender.split('@')[0]}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
+                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${m.sender ? m.sender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
                         await notificarOwnerHandler(m, { conn, text: ownerNotificationMessage, command: 'notificarowner', usedPrefix: m.prefix });
                     }
                     return;
