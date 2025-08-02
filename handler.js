@@ -32,7 +32,6 @@ import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 
-// Definición de __filename y __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -97,32 +96,6 @@ const countryPaymentMethods = {
     'uruguay': ``,
     'colombia': ``
 };
-
-// **COMENTADO**: Esta función resetea el estado de todos los chats al iniciar el bot, causando interferencia.
-// const resetAllChatStatesOnStartup = async () => {
-//     if (hasResetOnStartup) return;
-//     hasResetOnStartup = true;
-//
-//     try {
-//         const users = await new Promise((resolve, reject) => {
-//             global.db.data.users.find({}, (err, docs) => {
-//                 if (err) reject(err);
-//                 resolve(docs);
-//             });
-//         });
-//
-//         const userIdsToReset = users.filter(u => u.chatState !== 'initial').map(u => u.id);
-//
-//         if (userIdsToReset.length > 0) {
-//             console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
-//             global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
-//                 if (err) console.error("Error al reiniciar estados de chat:", err);
-//             });
-//         }
-//     } catch (e) {
-//         console.error("Error al reiniciar estados de chat en el arranque:", e);
-//     }
-// };
 
 const handleInactivity = async (m, conn, userId) => {
     try {
@@ -212,11 +185,6 @@ export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
 
-    // **COMENTADO**: Deshabilitamos la llamada a la función de reseteo al inicio del bot.
-    // if (!hasResetOnStartup) {
-    //     await resetAllChatStatesOnStartup();
-    // }
-
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
         if (m.key.remoteJid === 'status@broadcast') return;
@@ -228,7 +196,6 @@ export async function handler(m, conn, store) {
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
         
-        // Manejo de respuestas de botones de lista
         if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
             m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
         } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
@@ -242,7 +209,6 @@ export async function handler(m, conn, store) {
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
         
-        // Lógica corregida para manejar botones de pago
         if (await handlePaymentProofButton(m, conn)) {
             return;
         }
@@ -382,38 +348,19 @@ export async function handler(m, conn, store) {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
                         console.error('Error al obtener el usuario de la base de datos:', err);
-                        return resolve({});
+                        return resolve(null);
                     }
-                    resolve(doc || {});
+                    resolve(doc);
                 });
             });
-            const isNewUser = Object.keys(user).length === 0;
-            const isInactive = user.chatState === 'initial';
-            const isAwaitingPaymentProof = user.chatState === 'awaitingPaymentProof';
 
+            // **CORREGIDO**: Lógica simplificada para el estado del chat
+            const chatState = user?.chatState || 'initial';
 
-            // ***Manejo de estados de chat***
-            if (isAwaitingPaymentProof) {
-                const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-                const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-
-                if (esImagenConComprobante || esDocumentoConComprobante) {
-                    await handleIncomingMedia(m, conn);
-                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                        if (err) console.error("Error al actualizar chatState a active:", err);
-                    });
-                    return;
-                } else if (m.text) {
-                    await m.reply("Recuerda, estoy esperando la foto o el documento de tu comprobante. Por favor, adjunta la imagen con la leyenda adecuada.");
-                    return;
-                }
-            }
-
-
-            if (user.chatState === 'initial' || isNewUser || isInactive) {
+            if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn, true);
                 return;
-            } else if (user.chatState === 'awaitingName') {
+            } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -438,8 +385,7 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
-            } else if (user.chatState === 'active') {
-
+            } else if (chatState === 'active') {
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -448,7 +394,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
                 const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
                 const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
                 
@@ -459,13 +404,11 @@ export async function handler(m, conn, store) {
                     }
                 }
 
-                // SEGUNDO: Revisa si es una pregunta sobre servicios con botones (FAQs).
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
                     return;
                 }
 
-                // TERCERO: Revisa si es una pregunta general sobre métodos de pago.
                 const paises = Object.keys(countryPaymentMethods);
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
@@ -482,7 +425,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
-                // CUARTO: Revisa si es una intención de pago (texto sin imagen).
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
@@ -491,7 +433,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // QUINTO: Lógica de preguntas sobre precios e info de la última FAQ enviada.
                 const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
                 const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
@@ -512,7 +453,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // ÚLTIMO RECURSO: Usar la IA
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const paymentMethods = {
@@ -570,7 +510,6 @@ export async function handler(m, conn, store) {
     }
 }
 
-// Observador para cambios en archivos (útil para el desarrollo)
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
     unwatchFile(file);
