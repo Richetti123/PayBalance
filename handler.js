@@ -31,6 +31,7 @@ import { handler as registrarLoteHandler } from './plugins/registrarlote.js';
 import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
+import { handler as updateHandler } from './plugins/update.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,7 +44,7 @@ let hasResetOnStartup = false;
 
 const isNumber = x => typeof x === 'number' && !isNaN(x);
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function () {
-    clearTimeout(this);
+    clearTimeout(this);
 }, ms));
 
 const configBotPath = path.join(__dirname, 'src', 'configbot.json');
@@ -51,32 +52,32 @@ const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
 const chatDataPath = path.join(__dirname, 'src', 'chat_data.json');
 
 const loadConfigBot = () => {
-    if (fs.existsSync(configBotPath)) {
-        return JSON.parse(fs.readFileSync(configBotPath, 'utf8'));
-    }
-    return {
-        modoPagoActivo: false,
-        mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
-        mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
-        faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
-    };
+    if (fs.existsSync(configBotPath)) {
+        return JSON.parse(fs.readFileSync(configBotPath, 'utf8'));
+    }
+    return {
+        modoPagoActivo: false,
+        mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
+        mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
+        faqs: {},
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
+    };
 };
 
 const saveConfigBot = (config) => {
-    fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
+    fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
 };
 
 const loadChatData = () => {
-    if (fs.existsSync(chatDataPath)) {
-        return JSON.parse(fs.readFileSync(chatDataPath, 'utf8'));
-    }
-    return {};
+    if (fs.existsSync(chatDataPath)) {
+        return JSON.parse(fs.readFileSync(chatDataPath, 'utf8'));
+    }
+    return {};
 };
 
 const saveChatData = (data) => {
-    fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
 const countryPaymentMethods = {
@@ -97,65 +98,39 @@ const countryPaymentMethods = {
     'colombia': ``
 };
 
-const resetAllChatStatesOnStartup = async () => {
-    if (hasResetOnStartup) return;
-    hasResetOnStartup = true;
-
-    try {
-        const users = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) reject(err);
-                resolve(docs);
-            });
-        });
-
-        const userIdsToReset = users.filter(u => u.chatState !== 'initial').map(u => u.id);
-
-        if (userIdsToReset.length > 0) {
-            console.log(`[BOT STARTUP] Reiniciando el estado de chat de ${userIdsToReset.length} usuarios...`);
-            global.db.data.users.update({ id: { $in: userIdsToReset } }, { $set: { chatState: 'initial' } }, { multi: true }, (err) => {
-                if (err) console.error("Error al reiniciar estados de chat:", err);
-                else console.log(`[BOT STARTUP] Estados de chat reiniciados con éxito.`);
-            });
-        }
-    } catch (e) {
-        console.error("Error al reiniciar estados de chat en el arranque:", e);
-    }
-};
-
 const handleInactivity = async (m, conn, userId) => {
-    try {
-        const currentConfigData = loadConfigBot();
-        const farewellMessage = currentConfigData.mensajeDespedidaInactividad
-            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
-            .replace(/{bot}/g, conn.user.name || 'Bot');
+    try {
+        const currentConfigData = loadConfigBot();
+        const farewellMessage = currentConfigData.mensajeDespedidaInactividad
+            .replace(/{user}/g, m.pushName || m.sender.split('@')[0])
+            .replace(/{bot}/g, conn.user.name || 'Bot');
 
-        const sections = [{
-            title: '❓ Retomar Conversación',
-            rows: [{
-                title: '➡️ Reactivar Chat',
-                rowId: `.reactivate_chat`,
-                description: 'Pulsa aquí para iniciar una nueva conversación.'
-            }]
-        }];
-        
-        const listMessage = {
-            text: farewellMessage,
-            footer: 'Toca el botón para reactivar la conversación.',
-            title: '👋 *Hasta Pronto*',
-            buttonText: 'Retomar Conversación',
-            sections
-        };
-        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+        const sections = [{
+            title: '❓ Retomar Conversación',
+            rows: [{
+                title: '➡️ Reactivar Chat',
+                rowId: `.reactivate_chat`,
+                description: 'Pulsa aquí para iniciar una nueva conversación.'
+            }]
+        }];
+        
+        const listMessage = {
+            text: farewellMessage,
+            footer: 'Toca el botón para reactivar la conversación.',
+            title: '👋 *Hasta Pronto*',
+            buttonText: 'Retomar Conversación',
+            sections
+        };
+        await conn.sendMessage(m.chat, listMessage, { quoted: m });
 
-        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a initial:", err);
-        });
-        delete inactivityTimers[userId];
-        
-    } catch (e) {
-        console.error('Error al enviar mensaje de inactividad:', e);
-    }
+        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+            if (err) console.error("Error al actualizar chatState a initial:", err);
+        });
+        delete inactivityTimers[userId];
+        
+    } catch (e) {
+        console.error('Error al enviar mensaje de inactividad:', e);
+    }
 };
 
 const handleGoodbye = async (m, conn, userId) => {
@@ -167,53 +142,49 @@ const handleGoodbye = async (m, conn, userId) => {
 };
 
 const sendWelcomeMessage = async (m, conn, namePrompt = false) => {
-    const currentConfigData = loadConfigBot();
-    const chatData = loadChatData();
-    const userChatData = chatData[m.sender] || {};
-    let welcomeMessage = '';
+    const currentConfigData = loadConfigBot();
+    const chatData = loadChatData();
+    const userChatData = chatData[m.sender] || {};
+    let welcomeMessage = '';
 
-    if (namePrompt || !userChatData.nombre) {
-        welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
-        await m.reply(welcomeMessage);
-        
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a awaitingName:", err);
-        });
-        
-    } else {
-        welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
-        const faqsList = Object.values(currentConfigData.faqs || {}); 
-        const sections = [{
-            title: '⭐ Nuestros Servicios',
-            rows: faqsList.map((faq) => ({
-                title: faq.pregunta,
-                rowId: `${faq.pregunta}`,
-                description: `Toca para saber más sobre: ${faq.pregunta}`
-            }))
-        }];
+    if (namePrompt || !userChatData.nombre) {
+        welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+        await m.reply(welcomeMessage);
+        
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+            if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+        });
+        
+    } else {
+        welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+        const faqsList = Object.values(currentConfigData.faqs || {});
+        const sections = [{
+            title: '⭐ Nuestros Servicios',
+            rows: faqsList.map((faq) => ({
+                title: faq.pregunta,
+                rowId: `${faq.pregunta}`,
+                description: `Toca para saber más sobre: ${faq.pregunta}`
+            }))
+        }];
 
-        const listMessage = {
-            text: welcomeMessage,
-            footer: 'Toca el botón para ver nuestros servicios.',
-            title: '📚 *Bienvenido/a*',
-            buttonText: 'Ver Servicios',
-            sections
-        };
-        await conn.sendMessage(m.chat, listMessage, { quoted: m });
-        
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a active:", err);
-        });
-    }
+        const listMessage = {
+            text: welcomeMessage,
+            footer: 'Toca el botón para ver nuestros servicios.',
+            title: '📚 *Bienvenido/a*',
+            buttonText: 'Ver Servicios',
+            sections
+        };
+        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+        
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+            if (err) console.error("Error al actualizar chatState a active:", err);
+        });
+    }
 };
 
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-
-    if (!hasResetOnStartup) {
-        await resetAllChatStatesOnStartup();
-    }
 
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
@@ -226,7 +197,6 @@ export async function handler(m, conn, store) {
         m.message = (Object.keys(m.message)[0] === 'ephemeralMessage') ? m.message.ephemeralMessage.message : m.message;
         m.message = (Object.keys(m.message)[0] === 'viewOnceMessage') ? m.message.viewOnceMessage.message : m.message;
         
-        // Manejo de respuestas de botones de lista
         if (m.message && m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
             m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
         } else if (m.message && m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
@@ -235,21 +205,31 @@ export async function handler(m, conn, store) {
             m.text = m.message.templateButtonReplyMessage.selectedId;
         }
 
+        // **CORRECCIÓN CLAVE:** Priorizar las respuestas a los botones de pago al inicio
+        if (await handlePaymentProofButton(m, conn)) {
+            return;
+        }
+
+        if (await manejarRespuestaPago(m, conn)) {
+            return;
+        }
+        
+        // **CORRECCIÓN CLAVE:** Priorizar los comprobantes de pago enviados como archivos/imágenes
+        const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+        const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+        
+        if (esImagenConComprobante || esDocumentoConComprobante) {
+            const handledMedia = await handleIncomingMedia(m, conn);
+            if (handledMedia) {
+                return;
+            }
+        }
+
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
         }
         
-        // Lógica corregida para manejar botones de pago primero
-        if (await handlePaymentProofButton(m, conn)) {
-            return;
-        }
-        
-        // **NUEVO**: Llama a manejarRespuestaPago para los botones de recordatorios
-        if (await manejarRespuestaPago(m, conn)) {
-            return;
-        }
-
         if (m.isCmd) {
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
@@ -359,6 +339,12 @@ export async function handler(m, conn, store) {
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await notificarOwnerHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
+                    case 'update':
+                    case 'actualizar':
+                    case 'gitpull':
+                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                        await updateHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        break;
                     default:
                         m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
                         break;
@@ -377,23 +363,22 @@ export async function handler(m, conn, store) {
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
-            // Corrección: Obtener el objeto `user` de la base de datos
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
                         console.error('Error al obtener el usuario de la base de datos:', err);
-                        return resolve({});
+                        return resolve(null);
                     }
-                    resolve(doc || {});
+                    resolve(doc);
                 });
             });
-            const isNewUser = Object.keys(user).length === 0;
-            const isInactive = user.chatState === 'initial';
 
-            if (user.chatState === 'initial' || isNewUser || isInactive) {
+            const chatState = user?.chatState || 'initial';
+
+            if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn, true);
                 return;
-            } else if (user.chatState === 'awaitingName') {
+            } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -418,8 +403,7 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
-            } else if (user.chatState === 'active') {
-
+            } else if (chatState === 'active') {
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -428,26 +412,11 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // PRIMERO: Revisa si es una imagen/documento con una leyenda de comprobante.
-                const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
-                const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
-                
-                if (esImagenConComprobante || esDocumentoConComprobante) {
-                    // Llama al manejador específico de comprobantes.
-                    const handledMedia = await handleIncomingMedia(m, conn);
-                    if (handledMedia) {
-                        // Si el comprobante se procesó correctamente, termina la ejecución aquí.
-                        return;
-                    }
-                }
-
-                // SEGUNDO: Revisa si es una pregunta sobre servicios con botones (FAQs).
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
                     return;
                 }
 
-                // TERCERO: Revisa si es una pregunta general sobre métodos de pago.
                 const paises = Object.keys(countryPaymentMethods);
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
@@ -464,7 +433,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
-                // CUARTO: Revisa si es una intención de pago (texto sin imagen).
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
@@ -473,7 +441,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // QUINTO: Lógica de preguntas sobre precios e info de la última FAQ enviada.
                 const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
                 const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
 
@@ -494,7 +461,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // ÚLTIMO RECURSO: Usar la IA
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                     const paymentMethods = {
@@ -555,7 +521,7 @@ export async function handler(m, conn, store) {
 // Observador para cambios en archivos (útil para el desarrollo)
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
-    unwatchFile(file);
-    console.log(chalk.redBright("Se actualizó 'handler.js', recargando..."));
-    import(`${file}?update=${Date.now()}`);
+    unwatchFile(file);
+    console.log(chalk.redBright("Se actualizó 'handler.js', recargando..."));
+    import(`${file}?update=${Date.now()}`);
 });
