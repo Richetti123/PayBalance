@@ -205,7 +205,7 @@ export async function handler(m, conn, store) {
             m.text = m.message.templateButtonReplyMessage.selectedId;
         }
 
-        // **CORRECCIÓN CLAVE:** Priorizar las respuestas a los botones de pago al inicio
+        // --- Lógica de alta prioridad para botones y comprobantes (revisada) ---
         if (await handlePaymentProofButton(m, conn)) {
             return;
         }
@@ -214,7 +214,7 @@ export async function handler(m, conn, store) {
             return;
         }
         
-        // **CORRECCIÓN CLAVE:** Priorizar los comprobantes de pago enviados como archivos/imágenes
+        // Verifica si el mensaje es una imagen o documento con el texto clave
         const esImagenConComprobante = m.message?.imageMessage && m.message.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage && m.message.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
@@ -225,6 +225,7 @@ export async function handler(m, conn, store) {
             }
         }
 
+        // --- Lógica para comandos ---
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
             m.command = m.text.slice(m.prefix.length).split(' ')[0].toLowerCase();
@@ -335,10 +336,6 @@ export async function handler(m, conn, store) {
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await comprobantePagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
-                    case 'notificarowner':
-                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await notificarOwnerHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
-                        break;
                     case 'update':
                     case 'actualizar':
                     case 'gitpull':
@@ -374,6 +371,16 @@ export async function handler(m, conn, store) {
             });
 
             const chatState = user?.chatState || 'initial';
+            
+            // --- DOBLE VERIFICACIÓN de comprobantes (solución al problema) ---
+            if (isPaymentProof(messageTextLower)) {
+                await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.'); // Mensaje de confirmación inmediata
+                const handledMedia = await handleIncomingMedia(m, conn);
+                if (handledMedia) {
+                    return;
+                }
+            }
+            // --- FIN DOBLE VERIFICACIÓN ---
 
             if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn, true);
