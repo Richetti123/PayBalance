@@ -408,7 +408,7 @@ export async function handler(m, conn, store) {
                 console.log('--- FIN MENSAJE ---');
                 return;
             } else if (chatState === 'awaitingName') {
-                console.log('-> Estado 'awaitingName'. Procesando nombre...');
+                console.log("-> Estado 'awaitingName'. Procesando nombre...");
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -436,7 +436,7 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active') {
-                console.log('-> Estado 'active'. Buscando coincidencias o llamando a la IA.');
+                console.log("-> Estado 'active'. Buscando coincidencias o llamando a la IA.");
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
