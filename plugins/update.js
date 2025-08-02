@@ -5,8 +5,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const handler = async (m, { conn, text }) => {
-    if (!m.isOwner) {
+export const handler = async (m, { conn, text, isOwner }) => {
+    if (!isOwner) {
         return m.reply('❌ Comando no disponible, solo para el propietario del bot.');
     }
     
@@ -50,4 +50,3 @@ const handler = async (m, { conn, text }) => {
 };
 
 handler.command = /^(update|actualizar|gitpull)$/i;
-export default handler;
