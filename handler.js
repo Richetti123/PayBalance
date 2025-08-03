@@ -63,8 +63,8 @@ const loadConfigBot = () => {
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente PayBalance. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "Hola soy PayBalance, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
     };
 };
 
@@ -151,7 +151,7 @@ const sendWelcomeMessage = async (m, conn) => {
     let welcomeMessage = '';
 
     if (!userChatData.nombre) {
-        welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+        welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
@@ -188,55 +188,73 @@ const sendWelcomeMessage = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-    const isGroup = m.chat?.endsWith('@g.us');
-    const botJid = conn?.user?.id || conn?.user?.jid || '';
-    const botRaw = botJid?.split('@')[0] || 'Desconocido';
-    const botNumber = botRaw.split(':')[0];
-    const botIdentifier = '+' + botNumber;
 
-    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
-    const senderRaw = senderJid.split('@')[0] || 'Desconocido';
-    const senderNumber = '+' + senderRaw.split(':')[0];
-
-    const senderName = m.pushName || 'Desconocido';
-
-    let chatName = 'Desconocido';
-    try {
-      chatName = await conn.groupMetadata(m.chat).then(res => res.subject).catch(() => 'Chat Privado');
-    } catch (_) {
-      chatName = 'Chat Privado';
+    if (!hasResetOnStartup) {
+        const allUsers = await new Promise((resolve, reject) => {
+            global.db.data.users.find({}, (err, docs) => {
+                if (err) return reject(err);
+                resolve(docs);
+            });
+        });
+        if (allUsers.length > 0) {
+            await new Promise((resolve, reject) => {
+                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+                    if (err) return reject(err);
+                    resolve();
+                });
+            });
+        }
+        hasResetOnStartup = true;
+        lastResetTime = Date.now();
+    } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
+        const allUsers = await new Promise((resolve, reject) => {
+            global.db.data.users.find({}, (err, docs) => {
+                if (err) return reject(err);
+                resolve(docs);
+            });
+        });
+        if (allUsers.length > 0) {
+            await new Promise((resolve, reject) => {
+                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+                    if (err) return reject(err);
+                    resolve();
+                });
+            });
+        }
+        lastResetTime = Date.now();
     }
+    
+// Asignación de variables para el log visual (corregido y robusto)
+    const isGroup = m.chat && m.chat.endsWith('@g.us');
+    const messageType = Object.keys(m.message || {})[0];
+    const senderJid = isGroup ? m.key.participant : m.sender;
+    const senderName = m.pushName || 'Desconocido';
+    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
+    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
+    const botIdentifier = m.chat ? (isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0]) : 'N/A';
+    const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
+    
+    // El comando se basa en la nueva variable rawText
+    const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
 
-    const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
-
-    const rawText =
-      m.text ||
-      m.message?.conversation ||
-      m.message?.extendedTextMessage?.text ||
-      m.message?.imageMessage?.caption ||
-      '';
-
-    const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
-    const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
-    const messageType = Object.keys(m.message || {})[0] || 'desconocido';
-
+    // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
     console.log(
-      chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-      chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~ ${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-      chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-      chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~ ${chalk.blueBright(senderName)}`) + '\n' +
-      chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
-      chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
-      chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-      chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
+        chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+        chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+        chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+        chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+        chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+        chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
+        chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(messageType)}`) + '\n' +
+        chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+        chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
     );
+    // --- FIN: Bloque para logging visual ---
+    try {
+        if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
+        if (m.key.remoteJid === 'status@broadcast') return;
 
-    if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
-    if (m.key.remoteJid === 'status@broadcast') return;
-
-    m = smsg(conn, m);
-        try {
+        m = smsg(conn, m);
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
@@ -301,20 +319,20 @@ export async function handler(m, conn, store) {
                 switch (m.command) {
                     case 'registrarpago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await registrarPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await registrarPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'registrarlote':
                     case 'agregarclientes':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await registrarLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await registrarLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'recibo':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await enviarReciboHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await enviarReciboHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'recordatorio':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await recordatorioHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await recordatorioHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'clientes':
                     case 'listarpagos':
@@ -346,44 +364,44 @@ export async function handler(m, conn, store) {
                         break;
                     case 'historialpagos':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await historialPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await historialPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'pagosmes':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await pagosMesHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await pagosMesHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'pagosatrasados':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await pagosAtrasadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await pagosAtrasadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'recordatoriolote':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await recordatorioLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await recordatorioLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'suspendercliente':
                     case 'activarcliente':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await suspenderActivarHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await suspenderActivarHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'modopago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await modoPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await modoPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'estadobot':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await estadoBotHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await estadoBotHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'bienvenida':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await bienvenidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await bienvenidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'despedida':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await despedidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await despedidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'derivados':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await derivadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await derivadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'ayuda':
                     case 'comandos':
@@ -392,14 +410,14 @@ export async function handler(m, conn, store) {
                     case 'faq':
                     case 'eliminarfaq':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await faqHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                        await faqHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'importarpagos':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await importarPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'reset':
-                        await resetHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix});
+                        await resetHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                     case 'comprobantepago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
@@ -569,7 +587,7 @@ export async function handler(m, conn, store) {
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                         
-                    const personaPrompt = `Eres PayBalance, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
                     El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
                     
