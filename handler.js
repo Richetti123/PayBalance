@@ -630,14 +630,14 @@ export async function handler(m, conn, store) {
                     const encodedText = encodeURIComponent(m.text);
                     const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
                     if (!apiii.ok) {
-                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apii.status} ${apii.statusText}`));
+                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                         return;
                     }
                     const json = await apiii.json();
                     if (json.resultado) {
                         console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
-                        m.reply(json.resultado);
+                        m.reply(json.result);
                     } else {
                         console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'resultado' válido.`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
