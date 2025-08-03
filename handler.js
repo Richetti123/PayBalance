@@ -229,7 +229,7 @@ export async function handler(m, conn, store) {
     const senderName = m.pushName || 'Desconocido';
     const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
     const groupName = m.isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
-    const groupId = m.isGroup ? m.chat.split('@')[0] : 'N/A';
+    const botIdentifier = m.isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0];
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
     
     // El comando se basa en la nueva variable rawText
@@ -238,7 +238,7 @@ export async function handler(m, conn, store) {
     // *** BLOQUE DE CONSOLE.LOG CON COLORES AJUSTADOS A TU IMAGEN ***
     console.log(
         chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-        chalk.white(`┃ ❖ Bot: ${chalk.cyan(groupId)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+        chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
         chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
         chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
         chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
@@ -340,8 +340,11 @@ export async function handler(m, conn, store) {
                             let clientList = '📊 *Lista de Clientes y Pagos:*\n\n';
                             for (const num in clientsData) {
                                 const client = clientsData[num];
-                                const pagoActual = client.pagos[0]; // Asume que el pago actual es el primer elemento del array
-                                const estadoPago = pagoActual.confirmado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
+                                // Verifica la variable 'pagoRealizado'
+                                const estadoPago = client.pagoRealizado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
+                                
+                                const pagoActual = client.pagos && client.pagos[0] ? client.pagos[0] : { monto: 'N/A' };
+                                
                                 clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${pagoActual.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado de Suspensión:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n*• Estado de Pago:* ${estadoPago}\n----------------------------\n`;
                             }
                             if (Object.keys(clientsData).length === 0) clientList = '❌ No hay clientes registrados.';
