@@ -19,11 +19,11 @@
       "precio": "El costo del Bot personalizado (único pago) es de 20 soles peruanos, 6 mil pesos argentinos, 6 mil pesos chilenos, 120 pesos mexicanos, o 6 dólares."
     },
     "cashflow": {
-      "pregunta": "CashFlow",
-      "respuesta": "CashFlow es un bot de gestión de clientes diseñado para facilitar el seguimiento de pagos, enviar recordatorios automáticos y administrar tus clientes de manera eficiente.",
+      "pregunta": "PayBalance",
+      "respuesta": "PayBalance es un bot de gestión de clientes diseñado para facilitar el seguimiento de pagos, enviar recordatorios automáticos y administrar tus clientes de manera eficiente.",
       "precio": "El costo de CashFlow es de 5 soles peruanos, 1500 pesos argentinos, 1500 pesos chilenos, 40 pesos mexicanos, o 1.5 dólares."
     }
   },
-  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. Si necesitas algo más, puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-  "chatGreeting": "Hola {user} soy CashFlow un asistente virtual y estoy aqui para atenderte de la mejor manera posible"
+  "mensajeDespedidaInactividad": "Hola, parece que la conversación terminó. Soy tu asistente PayBalance. Si necesitas algo más, puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+  "chatGreeting": "Hola {user} soy PayBalance un asistente virtual y estoy aqui para atenderte de la mejor manera posible"
 }
