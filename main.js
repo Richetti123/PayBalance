@@ -143,8 +143,8 @@ const msgRetryCounterCache = new NodeCache();
 // --- FUNCIONES DE LIMPIEZA Y MANTENIMIENTO ---
 
 /**
- * Elimina todos los archivos de la carpeta 'tmp'.
- */
+* Elimina todos los archivos de la carpeta 'tmp'.
+*/
 function clearTmp() {
     const tmpDir = join(__dirname, 'tmp');
     if (!existsSync(tmpDir)) {
@@ -168,8 +168,8 @@ function clearTmp() {
 }
 
 /**
- * Limpia la carpeta de sesiones principal, eliminando pre-keys antiguas y otros archivos no esenciales.
- */
+* Limpia la carpeta de sesiones principal, eliminando pre-keys antiguas y otros archivos no esenciales.
+*/
 async function cleanMainSession() {
     const sessionDir = './sessions'; // Tu carpeta de sesiones
     try {
@@ -290,8 +290,8 @@ async function startBot() {
 
     // 1. Analizar los argumentos de línea de comandos
     const argv = yargs(process.argv.slice(2)).parse();
-    
-    let phoneNumber = null;    
+
+    let phoneNumber = null;        
     const methodCodeQR = process.argv.includes("qr");
     const methodCode = !!phoneNumber || process.argv.includes("code");
     const MethodMobile = process.argv.includes("mobile");
@@ -340,7 +340,7 @@ async function startBot() {
     });
 
     global.conn = sock;
-    global.conn.store = store;    
+    global.conn.store = store;        
 
     store.bind(sock.ev);
 
@@ -357,7 +357,7 @@ async function startBot() {
                 do {
                     phoneNumber = await question(chalk.bgBlack(chalk.bold.greenBright(mid.phNumber2(chalk))));
                     // Limpia el número: elimina espacios, guiones, etc.
-                    addNumber = phoneNumber.replace(/\D/g, '');    
+                    addNumber = phoneNumber.replace(/\D/g, '');        
                     // Añade el '+' si no lo tiene (la validación ya lo hace, pero para el `requestPairingCode` es bueno asegurarlo)
                     if (!addNumber.startsWith('+')) {
                         addNumber = `+${addNumber}`;
@@ -373,7 +373,7 @@ async function startBot() {
                 const codeBot = await sock.requestPairingCode(addNumber);
                 // Formatea el código para una mejor lectura (ej: "1234-5678")
                 const formattedCode = codeBot?.match(/.{1,4}/g)?.join("-") || codeBot;
-                
+
                 console.log(chalk.blue(`\nPor favor, espera. Si tu número (${addNumber}) es válido, se generará un código de 8 dígitos.`));
                 console.log(chalk.green(`Ingresa este código en tu WhatsApp móvil (Vincula un Dispositivo > Vincular con número de teléfono).`));
                 console.log(chalk.bold.white(chalk.bgMagenta(mid.pairingCode)), chalk.bold.white(chalk.white(formattedCode)));
@@ -445,8 +445,43 @@ async function startBot() {
             // Envía recordatorios al iniciar y luego cada 24 horas
             await sendAutomaticPaymentRemindersLogic(sock);
             setInterval(() => sendAutomaticPaymentRemindersLogic(sock), 24 * 60 * 60 * 1000); // Cada 24 horas
+
+            // Lógica de reinicio de estado al iniciar el bot
+            let hasResetOnStartup = false;
+            async function initializeChatStates() {
+                if (!hasResetOnStartup) {
+                    console.log(chalk.yellow('Reiniciando estados de chat para todos los usuarios...'));
+                    try {
+                        // Usamos el método find de NeDB para obtener todos los documentos
+                        global.db.data.users.find({}, async (err, docs) => {
+                            if (err) {
+                                console.error(chalk.red('Error al buscar usuarios para reiniciar chatState:', err));
+                                return;
+                            }
+                            for (const user of docs) {
+                                if (user.chatState) {
+                                    await new Promise((resolve, reject) => {
+                                        global.db.data.users.update({ _id: user._id }, { $set: { chatState: 'initial' } }, {}, (updateErr) => {
+                                            if (updateErr) {
+                                                console.error(`Error al reiniciar chatState para ${user._id}:`, updateErr);
+                                                return reject(updateErr);
+                                            }
+                                            resolve();
+                                        });
+                                    });
+                                }
+                            }
+                            console.log(chalk.green('Estados de chat reiniciados con éxito.'));
+                        });
+                        hasResetOnStartup = true;
+                    } catch (e) {
+                        console.error(chalk.red('Error al reiniciar los estados de chat:', e));
+                    }
+                }
+            }
+            initializeChatStates();
         }
-        
+
         // Manejo de QR (solo si se eligió QR o se forzó con --qr)
         if ((opcion == '1' || methodCodeQR) && qr != 0 && qr != undefined && !methodCode && !existsSync('./sessions/creds.json')) {
             console.log(chalk.bold.yellow(mid.mCodigoQR));
@@ -500,3 +535,32 @@ setInterval(async () => {
         await cleanMainSession();
     }
 }, 1000 * 60 * 10); // Cada 10 minutos
+
+// Reincio de estados de chat cada 12 horas
+setInterval(async () => {
+    console.log(chalk.yellow('Reiniciando estados de chat para todos los usuarios (programado)...'));
+    try {
+        global.db.data.users.find({}, async (err, docs) => {
+            if (err) {
+                console.error(chalk.red('Error en el reinicio programado de estados de chat:', err));
+                return;
+            }
+            for (const user of docs) {
+                if (user.chatState) {
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ _id: user._id }, { $set: { chatState: 'initial' } }, {}, (updateErr) => {
+                            if (updateErr) {
+                                console.error(`Error al reiniciar chatState para ${user._id}:`, updateErr);
+                                return reject(updateErr);
+                            }
+                            resolve();
+                        });
+                    });
+                }
+            }
+            console.log(chalk.green('Estados de chat reiniciados con éxito (programado).'));
+        });
+    } catch (e) {
+        console.error(chalk.red('Error en el reinicio programado de estados de chat:', e));
+    }
+}, 12 * 60 * 60 * 1000);
