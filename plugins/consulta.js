@@ -6,7 +6,7 @@ const handler = async (m, { conn }) => {
     const userChatData = global.db.data.users[m.sender] || {};
     const chatData = global.db.data.chatData || {};
     const faqs = global.db.data.faqs || {};
-    const paymentsFilePath = './database/pagos.json';
+    const paymentsFilePath = './src/pagos.json';
 
     const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(k => messageTextLower.includes(k));
     const askForInfo = ['más información', 'mas informacion', 'mas info'].some(k => messageTextLower.includes(k));
@@ -86,4 +86,4 @@ Instrucciones:
 };
 
 handler.command = /^consulta$/i;
-export default handler;
+export { handler };
