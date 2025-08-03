@@ -229,7 +229,8 @@ export async function handler(m, conn, store) {
     const senderName = m.pushName || 'Desconocido';
     const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
     const groupName = m.isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
-    const botIdentifier = m.isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0];
+    // Verificar si m.chat existe antes de usar .split()
+    const botIdentifier = m.chat ? (m.isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0]) : 'N/A';
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
     
     // El comando se basa en la nueva variable rawText
