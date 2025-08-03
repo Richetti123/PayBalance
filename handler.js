@@ -629,6 +629,11 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
+                    if (!apiii.ok) {
+                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apii.status} ${apii.statusText}`));
+                        m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
+                        return;
+                    }
                     const json = await apiii.json();
                     if (json.resultado) {
                         m.reply(json.resultado);
