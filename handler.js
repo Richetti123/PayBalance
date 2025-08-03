@@ -32,6 +32,7 @@ import { handler as enviarReciboHandler } from './plugins/recibo.js';
 import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 import { handler as updateHandler } from './plugins/update.js';
+import { handler as subirComprobanteHandler } from './plugins/subircomprobante.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -425,6 +426,10 @@ export async function handler(m, conn, store) {
                         break;
                     default:
                         m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
+                        break;
+                    case 'subircomprobante':
+                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
+                        await subirComprobanteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
                         break;
                 }
             } else {
