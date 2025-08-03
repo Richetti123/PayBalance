@@ -225,13 +225,13 @@ export async function handler(m, conn, store) {
     }
     
 // Asignación de variables para el log visual (corregido y robusto)
-    const isGroup = m.chat.endsWith('@g.us');
+    const isGroup = m.chat && m.chat.endsWith('@g.us');
     const messageType = Object.keys(m.message || {})[0];
     const senderJid = isGroup ? m.key.participant : m.sender;
     const senderName = m.pushName || 'Desconocido';
     const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
     const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
-    const botIdentifier = isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0];
+    const botIdentifier = m.chat ? (isGroup ? m.chat.split('@')[0] : conn.user.jid.split('@')[0]) : 'N/A';
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
     
     // El comando se basa en la nueva variable rawText
