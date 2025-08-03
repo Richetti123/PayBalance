@@ -223,7 +223,6 @@ export async function handler(m, conn, store) {
         }
         lastResetTime = Date.now();
     }
-// Preparar datos para el log
 const isGroup = m.chat?.endsWith('@g.us');
 const botJid = conn?.user?.id || conn?.user?.jid || '';
 const botIdentifier = botJid?.split('@')[0] || 'Desconocido';
@@ -231,33 +230,27 @@ const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJi
 const senderNumber = senderJid.split('@')[0] || 'Desconocido';
 const senderName = m.pushName || 'Desconocido';
 let chatName = 'Desconocido';
-
 try {
   chatName = await conn.groupMetadata(m.chat).then(res => res.subject).catch(() => 'Chat Privado');
 } catch (_) {
   chatName = 'Chat Privado';
 }
-
 const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
-
 const rawText =
   m.text ||
   m.message?.conversation ||
   m.message?.extendedTextMessage?.text ||
   m.message?.imageMessage?.caption ||
   '';
-
 const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
 const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
 const messageType = Object.keys(m.message || {})[0] || 'desconocido';
-
-// Mostrar el log bonito
 console.log(
   chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-  chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+  chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~ ${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
   chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
   chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-  chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+  chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~ ${chalk.blueBright(senderName)}`) + '\n' +
   chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
   chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
   chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
