@@ -606,8 +606,9 @@ export async function handler(m, conn, store) {
                         '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
                     };
                     const methodsList = Object.values(paymentMethods).join('\n\n');
-                    const clientInfoPrompt = !!paymentsData[m.sender] ?
-                        `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[m.sender].nombre}, Día de pago: ${paymentsData[m.sender].diaPago}, Monto: ${paymentsData[m.sender].monto}, Bandera: ${paymentsData[m.sender].bandera}. Su estado es ${paymentsData[m.sender].suspendido ? 'suspendido' : 'activo'}.` :
+                    const formattedSender = `+${m.sender.split('@')[0]}`;
+                    const clientInfoPrompt = !!paymentsData[formattedSender] ?
+                        `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[formattedSender].nombre}, Día de pago: ${paymentsData[formattedSender].diaPago}, Monto: ${paymentsData[formattedSender].monto}, Bandera: ${paymentsData[formattedSender].bandera}. Su estado es ${paymentsData[formattedSender].suspendido ? 'suspendido' : 'activo'}.` :
                         `El usuario no es un cliente existente. Es un cliente potencial.`;
                     const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
@@ -625,7 +626,9 @@ export async function handler(m, conn, store) {
                     - No inventes precios. Si te preguntan por el precio de un servicio, informa que revisen la lista de servicios.
                     - Eres capaz de identificar a los clientes. Aquí hay información del usuario:
                     
-                    - Has aprendido que tus servicios son:
+                    ${clientInfoPrompt}
+                    
+                    Has aprendido que tus servicios son:
                     - MichiBot exclusivo (pago mensual): Un bot de WhatsApp con gestión de grupos, descargas de redes sociales, IA, stickers y más.
                     - Bot personalizado (pago mensual): Similar a MichiBot, pero con personalización de tus datos y logo.
                     - Bot personalizado (único pago): La misma versión personalizada, pero con un solo pago.
@@ -633,18 +636,23 @@ export async function handler(m, conn, store) {
                     
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
-                    const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
+                    const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
+                    console.log('[Consulta] Enviando petición a IA:', url);
+                    
+                    const apiii = await fetch(url);
                     if (!apiii.ok) {
                         console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                         return;
                     }
                     const json = await apiii.json();
-                    if (json.resultado) {
+                    
+                    // La API de turbo-ai usa el campo 'content', no 'resultado'
+                    if (json.content) {
                         console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
-                        m.reply(json.result);
+                        m.reply(json.content);
                     } else {
-                        console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'resultado' válido.`));
+                        console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'content' válido.`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     }
                 } catch (e) {
