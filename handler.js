@@ -640,7 +640,7 @@ export async function handler(m, conn, store) {
                     });
 
                     if (!apiii.ok) {
-                    console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apii.status} ${apii.statusText}`));
+                    console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                     m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     return;
                     }
