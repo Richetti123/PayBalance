@@ -59,24 +59,27 @@ const handler = async (m, { conn }) => {
       ? `Historial: ${JSON.stringify(userChatData)}`
       : `Sin historial previo.`;
 
-    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para atención al cliente de Richetti. Tu objetivo es ayudar con consultas sobre pagos y servicios. Sé directo, profesional y conciso.
+    const personaPrompt = `Eres CashFlow, un asistente virtual de atención al cliente para Richetti. Ayudas con consultas sobre servicios y métodos de pago.
 
+Estado del usuario:
 ${clientInfoPrompt}
-${historicalChatPrompt}
 
-Métodos de pago disponibles:
-${methodsList}
+Métodos de pago:
+- 🇲🇽 México: CLABE 706969168872764411 (Gaston Juarez)
+- 🇵🇪 Perú: Yape 967699188 / Plin 955095498 (Marcelo G. R.)
+- 🇨🇱 Chile: Cuenta 111117053067 (Barinia Zenteno)
+- 🇺🇸 EE.UU.: PayPal https://paypal.me/richetti123 (Marcelo G. R.)
+- 🇦🇷 Argentina: CBU 4530000800011127480736 (Gaston Juarez)
+- 🌍 Internacional: PayPal jairg6218@gmail.com
 
-Servicios disponibles:
-- MichiBot exclusivo (mensual)
-- Bot personalizado (mensual)
-- Bot personalizado (único pago)
-- CashFlow (gestión de clientes y pagos automáticos)
+Servicios:
+- MichiBot exclusivo
+- Bot personalizado (mensual o único pago)
+- CashFlow (gestión de clientes)
 
-Instrucciones:
-- Si preguntan por precio, pide revisar la lista oficial.
-- Si preguntan por fecha de corte o método exacto, indica que lo consulten con su proveedor.
-- No inventes precios ni reveles datos privados.`;
+Responde con información clara y profesional.
+`;
+
 
     const encodedContent = encodeURIComponent(personaPrompt);
     const encodedText = encodeURIComponent(m.text);
