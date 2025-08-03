@@ -1,14 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { sendAutomaticPaymentRemindersLogic } from './lib/recordatorio.js';
+import { sendAutomaticPaymentRemindersLogic } from '../lib/recordatorios.js'; // Ruta de importación corregida
 
 const ADMIN_NUMBER_CONFIRMATION = '5217771303481@s.whatsapp.net';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Este es el handler para el comando del bot (por ejemplo, cuando alguien escribe ".recordatorio Marcelo")
 export async function handler(m, { conn, text, command, usedPrefix }) {
     const clientNameInput = text.trim();
 
@@ -43,10 +42,8 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
             return conn.sendMessage(m.chat, { text: '✅ Proceso de recordatorios automáticos finalizado.' }, { quoted: m });
         }
         
-        // --- CORRECCIÓN EN LA LECTURA DEL MONTO ---
         const { bandera, nombre, suspendido } = clientInfo;
         const monto = clientInfo.pagos && clientInfo.pagos.length > 0 ? clientInfo.pagos[0].monto : 'un monto no especificado';
-        // --- FIN DE LA CORRECCIÓN ---
 
         if (suspendido) {
             return conn.sendMessage(m.chat, { text: `❌ No se puede enviar un recordatorio a *${nombre}* porque su cuenta está suspendida.` }, { quoted: m });
