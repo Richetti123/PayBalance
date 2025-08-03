@@ -225,10 +225,11 @@ export async function handler(m, conn, store) {
     }
 // Asignación de variables para el log visual (corregido y robusto)
     const isGroup = m.chat && m.chat.endsWith('@g.us');
-    const senderJid = isGroup ? m.key.participant : m.sender;
+    // Verificación robusta de sender
+    const senderJid = m.isGroup ? (m.key.participant || 'N/A') : m.sender;
     const senderName = m.pushName || 'Desconocido';
-    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
-    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat Privado';
+    const senderNumber = senderJid.split('@')[0];
+    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
     const botIdentifier = conn.user.jid.split('@')[0];
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
 
