@@ -1,5 +1,5 @@
 {
-  "name": "CashFlow",
+  "name": "PayBalance",
   "version": "1.0",
   "description": "Bot WhatsApp",
   "main": "main.js",
@@ -16,16 +16,16 @@
     "test": "node test.js",
     "test2": "nodemon main.js"
   },
-  "homepage": "https://github.com/Richetti123/RichettiTest",
+  "homepage": "https://github.com/Richetti123/PayBalance",
   "author": {
     "name": "Richetti123"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Richetti123/RichettiTest.git"
+    "url": "git+https://github.com/Richetti123/PayBalance.git"
   },
   "bugs": {
-    "url": "https://github.com/Richetti123/RichettiTest/issues"
+    "url": "https://github.com/Richetti123/PayBalance/issues"
   },
   "license": "GPL-3.0-or-later",
   "dependencies": {
