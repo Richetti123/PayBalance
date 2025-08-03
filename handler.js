@@ -191,13 +191,18 @@ export async function handler(m, conn, store) {
     if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
     if (m.key.remoteJid === 'status@broadcast') return;
 
-    m = smsg(conn, m);
-    const isGroup = m.chat?.endsWith('@g.us');
+    m = smsg(conn, m);const isGroup = m.chat?.endsWith('@g.us');
     const botJid = conn?.user?.id || conn?.user?.jid || '';
-    const botIdentifier = botJid?.split('@')[0] || 'Desconocido';
+    const botRaw = botJid?.split('@')[0] || 'Desconocido';
+    const botNumber = botRaw.split(':')[0];
+    const botIdentifier = '+' + botNumber;
+
     const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
-    const senderNumber = senderJid.split('@')[0] || 'Desconocido';
+    const senderRaw = senderJid.split('@')[0] || 'Desconocido';
+    const senderNumber = '+' + senderRaw.split(':')[0];
+
     const senderName = m.pushName || 'Desconocido';
+
     let chatName = 'Desconocido';
     try {
       chatName = await conn.groupMetadata(m.chat).then(res => res.subject).catch(() => 'Chat Privado');
@@ -217,12 +222,13 @@ export async function handler(m, conn, store) {
     const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
     const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
     const messageType = Object.keys(m.message || {})[0] || 'desconocido';
+
     console.log(
-        chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+      chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
       chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
       chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
       chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
       chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
       chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
       chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
