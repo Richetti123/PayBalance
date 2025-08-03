@@ -224,12 +224,14 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
 // Asignación de variables para el log visual (corregido y robusto)
-    const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
+    const isGroup = m.chat && m.chat.endsWith('@g.us');
+    const senderJid = m.isGroup ? m.key.participant || m.key.remoteJid : m.sender;
     const senderName = m.pushName || 'Desconocido';
-    const groupName = m.isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
+    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
+    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat Privado';
     const botIdentifier = conn.user.jid ? conn.user.jid.split('@')[0] : 'N/A';
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
-    
+
     // El comando se basa en la nueva variable rawText
     const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
 
