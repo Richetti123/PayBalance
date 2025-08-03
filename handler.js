@@ -224,15 +224,12 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
 // Asignación de variables para el log visual (corregido y robusto)
-    const isGroup = m.chat && m.chat.endsWith('@g.us');
-    const messageType = Object.keys(m.message || {})[0];
-    const senderJid = m.isGroup && m.key.participant ? m.key.participant : m.sender;
+    const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
     const senderName = m.pushName || 'Desconocido';
-    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
-    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
+    const groupName = m.isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat: Chat Privado';
     const botIdentifier = conn.user.jid ? conn.user.jid.split('@')[0] : 'N/A';
     const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
-
+    
     // El comando se basa en la nueva variable rawText
     const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
 
@@ -255,7 +252,7 @@ export async function handler(m, conn, store) {
             chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
             chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
             chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.white(`┃ ❖ Acción: ${chalk.yellow('Mensaje Enviado')}`) + '\n' +
             chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
             chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
             chalk.white(`┃ ❖ Tipo de mensaje: [Enviado] ${chalk.green(Object.keys(m.message || {})[0])}`) + '\n' +
