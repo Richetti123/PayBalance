@@ -636,6 +636,7 @@ export async function handler(m, conn, store) {
                     }
                     const json = await apiii.json();
                     if (json.resultado) {
+                        console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.resultado);
                     } else {
                         console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'resultado' válido.`));
