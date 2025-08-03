@@ -319,20 +319,20 @@ export async function handler(m, conn, store) {
                 switch (m.command) {
                     case 'registrarpago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await registrarPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await registrarPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'registrarlote':
                     case 'agregarclientes':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await registrarLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await registrarLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'recibo':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await enviarReciboHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await enviarReciboHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'recordatorio':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await recordatorioHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await recordatorioHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'clientes':
                     case 'listarpagos':
@@ -364,44 +364,44 @@ export async function handler(m, conn, store) {
                         break;
                     case 'historialpagos':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await historialPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await historialPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'pagosmes':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await pagosMesHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await pagosMesHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'pagosatrasados':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await pagosAtrasadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await pagosAtrasadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'recordatoriolote':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await recordatorioLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await recordatorioLoteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'suspendercliente':
                     case 'activarcliente':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await suspenderActivarHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await suspenderActivarHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'modopago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await modoPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await modoPagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'estadobot':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await estadoBotHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await estadoBotHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'bienvenida':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await bienvenidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await bienvenidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'despedida':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await despedidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, currentConfigData: loadConfigBot(), saveConfigBot });
+                        await despedidaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner, currentConfigData: loadConfigBot(), saveConfigBot });
                         break;
                     case 'derivados':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await derivadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await derivadosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'ayuda':
                     case 'comandos':
@@ -410,14 +410,14 @@ export async function handler(m, conn, store) {
                     case 'faq':
                     case 'eliminarfaq':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await faqHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await faqHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'importarpagos':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await importarPagosHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'reset':
-                        await resetHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        await resetHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix});
                         break;
                     case 'comprobantepago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
