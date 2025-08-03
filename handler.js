@@ -225,10 +225,10 @@ export async function handler(m, conn, store) {
 
     console.log(
       chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-      chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+      chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~ ${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
       chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
       chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~ ${chalk.blueBright(senderName)}`) + '\n' +
       chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
       chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
       chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
