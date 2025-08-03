@@ -63,8 +63,8 @@ const loadConfigBot = () => {
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente PayBalance. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "Hola soy PayBalance, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
     };
 };
 
@@ -151,7 +151,7 @@ const sendWelcomeMessage = async (m, conn) => {
     let welcomeMessage = '';
 
     if (!userChatData.nombre) {
-        welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+        welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
@@ -223,39 +223,45 @@ export async function handler(m, conn, store) {
         }
         lastResetTime = Date.now();
     }
-const isGroup = m.chat?.endsWith('@g.us');
-const botJid = conn?.user?.id || conn?.user?.jid || '';
-const botIdentifier = botJid?.split('@')[0] || 'Desconocido';
-const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
-const senderNumber = senderJid.split('@')[0] || 'Desconocido';
-const senderName = m.pushName || 'Desconocido';
-let chatName = 'Desconocido';
-try {
-  chatName = await conn.groupMetadata(m.chat).then(res => res.subject).catch(() => 'Chat Privado');
-} catch (_) {
-  chatName = 'Chat Privado';
-}
-const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
-const rawText =
-  m.text ||
-  m.message?.conversation ||
-  m.message?.extendedTextMessage?.text ||
-  m.message?.imageMessage?.caption ||
-  '';
-const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
-const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
-const messageType = Object.keys(m.message || {})[0] || 'desconocido';
-console.log(
-  chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-  chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~ ${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-  chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-  chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-  chalk.white(`┃ ❖ Usuario: ${chalk.blueBright(senderNumber)} ~ ${chalk.blueBright(senderName)}`) + '\n' +
-  chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
-  chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
-  chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-  chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
-);
+// Asignación de variables para el log visual (corregido y robusto)
+    const isGroup = m.chat && m.chat.endsWith('@g.us');
+    const senderJid = isGroup ? m.key.participant : m.sender;
+    const senderName = m.pushName || 'Desconocido';
+    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
+    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat Privado';
+    const botIdentifier = conn.user.jid.split('@')[0];
+    const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
+
+    // El comando se basa en la nueva variable rawText
+    const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
+
+    if (!m.fromMe) {
+        // *** BLOQUE DE CONSOLE.LOG PARA MENSAJES RECIBIDOS ***
+        console.log(
+            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
+            chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(Object.keys(m.message || {})[0])}`) + '\n' +
+            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
+        );
+    } else {
+        // *** BLOQUE DE CONSOLE.LOG PARA MENSAJES ENVIADOS POR EL BOT ***
+        console.log(
+            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
+            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
+            chalk.white(`┃ ❖ Tipo de mensaje: [Enviado] ${chalk.green(Object.keys(m.message || {})[0])}`) + '\n' +
+            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+            chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
+        );
+    }
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
         if (m.key.remoteJid === 'status@broadcast') return;
@@ -593,7 +599,7 @@ console.log(
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                         
-                    const personaPrompt = `Eres PayBalance, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
                     El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
                     
