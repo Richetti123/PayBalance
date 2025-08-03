@@ -188,10 +188,7 @@ const sendWelcomeMessage = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-    if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
-    if (m.key.remoteJid === 'status@broadcast') return;
-
-    m = smsg(conn, m);const isGroup = m.chat?.endsWith('@g.us');
+    const isGroup = m.chat?.endsWith('@g.us');
     const botJid = conn?.user?.id || conn?.user?.jid || '';
     const botRaw = botJid?.split('@')[0] || 'Desconocido';
     const botNumber = botRaw.split(':')[0];
@@ -234,6 +231,11 @@ export async function handler(m, conn, store) {
       chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
       chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
     );
+
+    if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
+    if (m.key.remoteJid === 'status@broadcast') return;
+
+    m = smsg(conn, m);
         try {
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
