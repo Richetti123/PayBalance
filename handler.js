@@ -251,7 +251,8 @@ export async function handler(m, conn, store) {
         if (m.key.remoteJid === 'status@broadcast') return;
 
         m = smsg(conn, m);
-        m.isOwner = m.sender.startsWith(BOT_OWNER_NUMBER) || (m.isGroup && m.key.participant && m.key.participant.startsWith(BOT_OWNER_NUMBER));
+        const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
+        m.isOwner = m.sender === ownerJid;
         m.prefix = '.';
 
         if (m.message) {
@@ -269,13 +270,11 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
-                // Se eliminó la lógica duplicada para el botón '1', ahora se maneja completamente en manejarRespuestaPago
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
-                // Se manejan las respuestas del propietario (handlePaymentProofButton) y del cliente (manejarRespuestaPago)
                 if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
                     return;
                 }
@@ -285,7 +284,6 @@ export async function handler(m, conn, store) {
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
-        // --- CÓDIGO CORREGIDO PARA EL MENSAJE DE COMPROBANTE ---
         if (esImagenConComprobante || esDocumentoConComprobante) {
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
@@ -300,13 +298,11 @@ export async function handler(m, conn, store) {
                 console.error("Error al leer pagos.json en handler.js:", e);
             }
             
-            // Se elimina la línea m.reply para evitar el mensaje duplicado.
             const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
             if (handledMedia) {
                 return;
             }
         }
-        // --- FIN DEL CÓDIGO CORREGIDO ---
 
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
@@ -424,12 +420,12 @@ export async function handler(m, conn, store) {
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await updateHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
-                    default:
-                        m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
-                        break;
                     case 'subircomprobante':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await subirComprobanteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix });
+                        break;
+                    default:
+                        m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
                         break;
                 }
             } else {
@@ -456,9 +452,7 @@ export async function handler(m, conn, store) {
 
             const chatState = user?.chatState || 'initial';
             
-            // Se elimina la lógica duplicada de comprobantes que ahora se maneja en el bloque corregido.
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
-                // Esta lógica se moverá al bloque de comprobantes
                 return;
             }
             if (chatState === 'initial') {
@@ -486,7 +480,6 @@ export async function handler(m, conn, store) {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
                         
-                        // --- CÓDIGO CORREGIDO PARA EL MENSAJE DE BIENVENIDA ---
                         const faqsList = Object.values(currentConfigData.faqs || {});
                         const sections = [{
                             title: '⭐ Nuestros Servicios',
@@ -505,8 +498,6 @@ export async function handler(m, conn, store) {
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
-                        // Se elimina la llamada a sendWelcomeMessage(m, conn) para evitar el mensaje duplicado
-                        // --- FIN DEL CÓDIGO CORREGIDO ---
                         
                         return;
                     }
@@ -624,7 +615,6 @@ export async function handler(m, conn, store) {
     }
 }
 
-// Observador para cambios en archivos (útil para el desarrollo)
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
     unwatchFile(file);
