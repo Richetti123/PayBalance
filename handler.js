@@ -223,45 +223,36 @@ export async function handler(m, conn, store) {
         }
         lastResetTime = Date.now();
     }
-// Asignación de variables para el log visual (corregido y robusto)
-    const isGroup = m.chat && m.chat.endsWith('@g.us');
-    const senderJid = m.isGroup ? m.key.participant || m.key.remoteJid : m.sender;
-    const senderName = m.pushName || 'Desconocido';
-    const senderNumber = senderJid ? senderJid.split('@')[0] : 'N/A';
-    const groupName = isGroup ? `Chat: ${m.groupMetadata?.subject || 'Desconocido'}` : 'Chat Privado';
-    const botIdentifier = conn.user.jid ? conn.user.jid.split('@')[0] : 'N/A';
-    const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || '';
+const isGroup = m.chat?.endsWith('@g.us');
+const botJid = conn?.user?.id || conn?.user?.jid || '';
+const botIdentifier = botJid ? botJid.split('@')[0] : 'Desconocido';
+const senderJid = isGroup ? (m.key?.participant || m.participant || m.sender) : m.sender;
+const senderName = m.pushName || await conn.getName(senderJid) || 'Desconocido';
+const senderNumber = senderJid ? senderJid.split('@')[0] : 'Desconocido';
+const chatName = await conn.getName(m.chat);
+const groupName = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
+const rawText =
+    m.text || 
+    m.message?.conversation || 
+    m.message?.extendedTextMessage?.text || 
+    m.message?.imageMessage?.caption || 
+    '';
 
-    // El comando se basa en la nueva variable rawText
-    const commandForLog = rawText && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
+const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
+const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
+const messageType = Object.keys(m.message || {})[0] || 'desconocido';
 
-    if (!m.fromMe) {
-        // *** BLOQUE DE CONSOLE.LOG PARA MENSAJES RECIBIDOS ***
-        console.log(
-            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.white(`┃ ❖ Acción: ${commandForLog ? chalk.yellow(`Comando: ${commandForLog}`) : chalk.yellow('Mensaje')}`) + '\n' +
-            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
-            chalk.white(`┃ ❖ Tipo de mensaje: [Recibido] ${chalk.red(Object.keys(m.message || {})[0])}`) + '\n' +
-            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
-        );
-    } else {
-        // *** BLOQUE DE CONSOLE.LOG PARA MENSAJES ENVIADOS POR EL BOT ***
-        console.log(
-            chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-            chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-            chalk.white(`┃ ❖ Acción: ${chalk.yellow('Mensaje Enviado')}`) + '\n' +
-            chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
-            chalk.white(`┃ ❖ Grupo: ${chalk.magenta(groupName)}`) + '\n' +
-            chalk.white(`┃ ❖ Tipo de mensaje: [Enviado] ${chalk.green(Object.keys(m.message || {})[0])}`) + '\n' +
-            chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-            chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
-        );
-    }
+console.log(
+    chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
+    chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+    chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+    chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
+    chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+    chalk.white(`┃ ❖ ${groupName}`) + '\n' +
+    chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
+    chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+    chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
+);
     try {
         if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
         if (m.key.remoteJid === 'status@broadcast') return;
