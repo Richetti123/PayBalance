@@ -24,7 +24,7 @@ try {
 const rl = createInterface(process.stdin, process.stdout); // Interfaz para la consola
 
 // --- Branding inicial ---
-cfonts.say(packageJson.name || 'Cash\nFlow', {
+cfonts.say(packageJson.name || 'Pay\nBalance', {
     font: 'chrome',
     align: 'center',
     gradient: ['red', 'magenta']
