@@ -608,7 +608,7 @@ export async function handler(m, conn, store) {
                         `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                         
-                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos 						y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
+                    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
                     El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
                     
@@ -628,26 +628,9 @@ export async function handler(m, conn, store) {
                     
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
-                    const apiii = await fetch('https://apis-starlights-team.koyeb.app/starlight/turbo-ai', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify({
-                          content: personaPrompt,
-                          text: m.text
-                      })
-                    });
-
-                    if (!apiii.ok) {
-                    console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
-                    m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
-                    return;
-                    }
-                
+                    const apiii = await fetch(`https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`);
                     const json = await apiii.json();
                     if (json.resultado) {
-                        console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.resultado);
                     } else {
                         console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'resultado' válido.`));
@@ -655,7 +638,7 @@ export async function handler(m, conn, store) {
                     }
                 } catch (e) {
                     console.error(chalk.red(`[❗] Error al llamar a la API de IA: ${e.message}`));
-                    m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
+                    m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
                 }
             }
         }
