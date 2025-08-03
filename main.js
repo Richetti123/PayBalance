@@ -327,7 +327,7 @@ async function startBot() {
         }),
         printQRInTerminal: opcion == '1' ? true : methodCodeQR ? true : false,
         mobile: MethodMobile,
-        browser: opcion == '1' ? ['CashFlow', 'Desktop', '3.0'] : methodCodeQR ? ['CashFlow', 'Desktop', '3.0'] : ["CashFlow", "Chrome", "20.0.04"],
+        browser: opcion == '1' ? ['PayBalance', 'Desktop', '3.0'] : methodCodeQR ? ['PayBalance', 'Desktop', '3.0'] : ["PayBalance", "Chrome", "20.0.04"],
         auth: state,
         generateHighQualityLinkPreview: true,
         msgRetryCounterCache,
