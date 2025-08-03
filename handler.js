@@ -188,40 +188,47 @@ const sendWelcomeMessage = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-
-    // Se eliminó la lógica de reinicio del chat de este archivo para mejorar el rendimiento.
-    // Esta lógica debe ser movida a main.js para que solo se ejecute al iniciar el bot.
-
     if (m.key.id.startsWith('BAE5') && m.key.id.length === 16) return;
     if (m.key.remoteJid === 'status@broadcast') return;
 
     m = smsg(conn, m);
-
-    // Bloque de registro visual corregido y optimizado
-    const isGroup = m.isGroup;
-    const botIdentifier = conn.user.jid ? conn.user.jid.split('@')[0] : 'N/A';
-    const senderNumber = m.sender ? m.sender.split('@')[0] : 'N/A';
+    const isGroup = m.chat?.endsWith('@g.us');
+    const botJid = conn?.user?.id || conn?.user?.jid || '';
+    const botIdentifier = botJid?.split('@')[0] || 'Desconocido';
+    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
+    const senderNumber = senderJid.split('@')[0] || 'Desconocido';
     const senderName = m.pushName || 'Desconocido';
-    const chatName = isGroup ? (await conn.groupMetadata(m.chat)?.subject || 'Desconocido') : 'Chat Privado';
-    const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: ${chatName}`;
-    const rawText = m.text || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ' (Sin texto legible) ';
-    const commandForLog = m.isCmd ? m.command : null;
-    const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${m.prefix}${commandForLog}` : 'Mensaje');
-    const messageType = Object.keys(m.message || {})[0] || 'desconocido';
+    let chatName = 'Desconocido';
+    try {
+      chatName = await conn.groupMetadata(m.chat).then(res => res.subject).catch(() => 'Chat Privado');
+    } catch (_) {
+      chatName = 'Chat Privado';
+    }
 
+    const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
+
+    const rawText =
+      m.text ||
+      m.message?.conversation ||
+      m.message?.extendedTextMessage?.text ||
+      m.message?.imageMessage?.caption ||
+      '';
+
+    const commandForLog = rawText && m.prefix && rawText.startsWith(m.prefix) ? rawText.split(' ')[0] : null;
+    const actionText = m.fromMe ? 'Mensaje Enviado' : (commandForLog ? `Comando: ${commandForLog}` : 'Mensaje');
+    const messageType = Object.keys(m.message || {})[0] || 'desconocido';
     console.log(
         chalk.hex('#FF8C00')(`╭━━━━━━━━━━━━━━𖡼`) + '\n' +
-        chalk.white(`┃ ❖ Bot: ${chalk.cyan('+' + botIdentifier)} ~ ${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
-        chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
-        chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
-        chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~ ${chalk.blueBright(senderName)}`) + '\n' +
-        chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
-        chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
-        chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
-        chalk.white(`${rawText.trim()}`)
+      chalk.white(`┃ ❖ Bot: ${chalk.cyan(botIdentifier)} ~${chalk.cyan(conn.user?.name || 'Bot')}`) + '\n' +
+      chalk.white(`┃ ❖ Horario: ${chalk.greenBright(new Date().toLocaleTimeString())}`) + '\n' +
+      chalk.white(`┃ ❖ Acción: ${chalk.yellow(actionText)}`) + '\n' +
+      chalk.white(`┃ ❖ Usuario: ${chalk.blueBright('+' + senderNumber)} ~${chalk.blueBright(senderName)}`) + '\n' +
+      chalk.white(`┃ ❖ ${groupLine}`) + '\n' +
+      chalk.white(`┃ ❖ Tipo de mensaje: [${m.fromMe ? 'Enviado' : 'Recibido'}] ${chalk.red(messageType)}`) + '\n' +
+      chalk.hex('#FF8C00')(`╰━━━━━━━━━━━━━━𖡼`) + '\n' +
+      chalk.white(`${rawText.trim() || ' (Sin texto legible) '}`)
     );
-
-    try {
+        try {
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
