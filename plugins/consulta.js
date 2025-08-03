@@ -91,7 +91,7 @@ Has aprendido que tus servicios son:
     const encodedText = encodeURIComponent(m.text);
 
     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-    console.log('[Consulta] Enviando petición a IA:', url);
+    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
 
     const response = await fetch(url);
     if (!response.ok) {
