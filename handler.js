@@ -284,7 +284,7 @@ export async function handler(m, conn, store) {
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
-        // --- CÓDIGO CORREGIDO: Se busca la información del cliente antes de llamar a handleIncomingMedia ---
+        // --- CÓDIGO CORREGIDO PARA EL MENSAJE DE COMPROBANTE ---
         if (esImagenConComprobante || esDocumentoConComprobante) {
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
@@ -299,8 +299,7 @@ export async function handler(m, conn, store) {
                 console.error("Error al leer pagos.json en handler.js:", e);
             }
             
-            // Llama a la función corregida, pasándole la información del cliente
-            await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
+            // Se elimina la línea m.reply para evitar el mensaje duplicado.
             const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
             if (handledMedia) {
                 return;
@@ -481,7 +480,29 @@ export async function handler(m, conn, store) {
                         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
-                        await sendWelcomeMessage(m, conn);
+                        
+                        // --- CÓDIGO CORREGIDO PARA EL MENSAJE DE BIENVENIDA ---
+                        const faqsList = Object.values(currentConfigData.faqs || {});
+                        const sections = [{
+                            title: '⭐ Nuestros Servicios',
+                            rows: faqsList.map((faq) => ({
+                                title: faq.pregunta,
+                                rowId: `${faq.pregunta}`,
+                                description: `Toca para saber más sobre: ${faq.pregunta}`
+                            }))
+                        }];
+
+                        const listMessage = {
+                            text: `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`,
+                            footer: 'Toca el botón para ver nuestros servicios.',
+                            title: '📚 *Bienvenido/a*',
+                            buttonText: 'Ver Servicios',
+                            sections
+                        };
+                        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                        // Se elimina la llamada a sendWelcomeMessage(m, conn) para evitar el mensaje duplicado
+                        // --- FIN DEL CÓDIGO CORREGIDO ---
+                        
                         return;
                     }
                 }
