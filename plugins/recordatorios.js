@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { sendAutomaticPaymentRemindersLogic } from '../lib/recordatorios.js'; // Ruta de importación corregida
+import { sendAutomaticPaymentRemindersLogic } from '../lib/recordatorio.js';
 
 const ADMIN_NUMBER_CONFIRMATION = '5217771303481@s.whatsapp.net';
 
@@ -36,7 +36,6 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
                 return conn.sendMessage(m.chat, { text: `❌ Cliente con nombre "${clientNameInput}" no encontrado en la base de datos de pagos.` }, { quoted: m });
             }
         } else {
-            // Se llama a la lógica de recordatorios automáticos desde el otro archivo
             await conn.sendMessage(m.chat, { text: '🔄 Iniciando envío de recordatorios automáticos a todos los clientes que les toca pago hoy o mañana...' }, { quoted: m });
             await sendAutomaticPaymentRemindersLogic(conn);
             return conn.sendMessage(m.chat, { text: '✅ Proceso de recordatorios automáticos finalizado.' }, { quoted: m });
