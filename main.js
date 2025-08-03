@@ -31,7 +31,7 @@ import util from 'util';
 import Datastore from '@seald-io/nedb';
 import {
     sendAutomaticPaymentRemindersLogic
-} from './plugins/recordatorios.js';
+} from './lib/recordatorio.js';
 
 // Importaciones de 'fs/promises' para operaciones asíncronas
 import {
