@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { sendAutomaticPaymentRemindersLogic } from './recordatorios.js';
+import { sendAutomaticPaymentRemindersLogic } from './lib/recordatorios.js';
 
 const ADMIN_NUMBER_CONFIRMATION = '5217771303481@s.whatsapp.net';
 
