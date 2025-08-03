@@ -252,7 +252,7 @@ export async function handler(m, conn, store) {
 
         m = smsg(conn, m);
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
-        m.isOwner = m.sender === ownerJid;
+        m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
 
         if (m.message) {
