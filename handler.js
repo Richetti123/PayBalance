@@ -268,19 +268,13 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
-                if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
-                    await conn.sendMessage(m.chat, {
-                        text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
-                    });
-                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
-                    return;
-                }
-                
+                // Se eliminó la lógica duplicada para el botón '1', ahora se maneja completamente en manejarRespuestaPago
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
+                // Se manejan las respuestas del propietario (handlePaymentProofButton) y del cliente (manejarRespuestaPago)
                 if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
                     return;
                 }
@@ -290,12 +284,29 @@ export async function handler(m, conn, store) {
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
+        // --- CÓDIGO CORREGIDO: Se busca la información del cliente antes de llamar a handleIncomingMedia ---
         if (esImagenConComprobante || esDocumentoConComprobante) {
-            const handledMedia = await handleIncomingMedia(m, conn);
+            const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
+            let clientInfo = null;
+
+            try {
+                if (fs.existsSync(paymentsFilePath)) {
+                    const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+                    const formattedNumber = `+${m.sender.split('@')[0]}`;
+                    clientInfo = clientsData[formattedNumber];
+                }
+            } catch (e) {
+                console.error("Error al leer pagos.json en handler.js:", e);
+            }
+            
+            // Llama a la función corregida, pasándole la información del cliente
+            await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
+            const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
             if (handledMedia) {
                 return;
             }
         }
+        // --- FIN DEL CÓDIGO CORREGIDO ---
 
         if (m.text && m.text.startsWith(m.prefix)) {
             m.isCmd = true;
@@ -441,12 +452,10 @@ export async function handler(m, conn, store) {
 
             const chatState = user?.chatState || 'initial';
             
+            // Se elimina la lógica duplicada de comprobantes que ahora se maneja en el bloque corregido.
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
-                await m.reply('✅ Recibí tu comprobante. Procesaré tu pago ahora.');
-                const handledMedia = await handleIncomingMedia(m, conn);
-                if (handledMedia) {
-                    return;
-                }
+                // Esta lógica se moverá al bloque de comprobantes
+                return;
             }
             if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn);
