@@ -2,13 +2,12 @@ import fs from 'fs';
 
 const handler = async (m, { conn }) => {
   try {
+    console.log(`[Consulta] Mensaje recibido: ${m.text}`);
+
     const messageTextLower = m.text.toLowerCase();
     const userChatData = global.db.data.users[m.sender] || {};
-    const chatData = global.db.data.chatData || {};
     const faqs = global.db.data.faqs || {};
     const paymentsFilePath = './src/pagos.json';
-
-    console.log('[Consulta] Mensaje recibido:', m.text);
 
     const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(k => messageTextLower.includes(k));
     const askForInfo = ['más información', 'mas informacion', 'mas info'].some(k => messageTextLower.includes(k));
@@ -16,8 +15,6 @@ const handler = async (m, { conn }) => {
     if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
       const faqKey = userChatData.lastFaqSentKey;
       const faq = faqs[faqKey];
-      console.log('[Consulta] Detectada FAQ previa:', faqKey);
-
       if (faq) {
         let replyText = '';
         if (askForPrice) {
@@ -27,19 +24,13 @@ const handler = async (m, { conn }) => {
         }
         await m.reply(replyText);
         delete userChatData.lastFaqSentKey;
-        global.db.write();
+        global.db.write(); // Guarda cambios
         return;
       }
     }
 
-    if (!fs.existsSync(paymentsFilePath)) {
-      console.error('[Consulta] Archivo pagos.json no encontrado');
-      throw new Error('Archivo de pagos no encontrado.');
-    }
-
-    const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
     console.log('[Consulta] Datos de pagos cargados');
-
+    const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
     const paymentMethods = {
       '🇲🇽': `Para pagar en México:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
       '🇵🇪': `Para pagar en Perú:\nYape: 967699188\nPlin: 955095498\nNombre: Marcelo Gonzales R.`,
@@ -59,36 +50,32 @@ const handler = async (m, { conn }) => {
       ? `Historial: ${JSON.stringify(userChatData)}`
       : `Sin historial previo.`;
 
-    const personaPrompt = `Eres CashFlow, un asistente virtual de atención al cliente para Richetti. Ayudas con consultas sobre servicios y métodos de pago.
+    const personaPrompt = `Eres CashFlow, un asistente virtual profesional para atención al cliente de Richetti. Tu objetivo es ayudar con consultas sobre pagos y servicios. Sé directo, profesional y conciso.
 
-Estado del usuario:
 ${clientInfoPrompt}
+${historicalChatPrompt}
 
-Métodos de pago:
-- 🇲🇽 México: CLABE 706969168872764411 (Gaston Juarez)
-- 🇵🇪 Perú: Yape 967699188 / Plin 955095498 (Marcelo G. R.)
-- 🇨🇱 Chile: Cuenta 111117053067 (Barinia Zenteno)
-- 🇺🇸 EE.UU.: PayPal https://paypal.me/richetti123 (Marcelo G. R.)
-- 🇦🇷 Argentina: CBU 4530000800011127480736 (Gaston Juarez)
-- 🌍 Internacional: PayPal jairg6218@gmail.com
+Métodos de pago disponibles:
+${methodsList}
 
-Servicios:
-- MichiBot exclusivo
-- Bot personalizado (mensual o único pago)
-- CashFlow (gestión de clientes)
+Servicios disponibles:
+- MichiBot exclusivo (mensual)
+- Bot personalizado (mensual)
+- Bot personalizado (único pago)
+- CashFlow (gestión de clientes y pagos automáticos)
 
-Responde con información clara y profesional.
-`;
-
+Instrucciones:
+- Si preguntan por precio, pide revisar la lista oficial.
+- Si preguntan por fecha de corte o método exacto, indica que lo consulten con su proveedor.
+- No inventes precios ni reveles datos privados.`;
 
     const encodedContent = encodeURIComponent(personaPrompt);
     const encodedText = encodeURIComponent(m.text);
-    const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
 
+    const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
     console.log('[Consulta] Enviando petición a IA:', url);
 
     const response = await fetch(url);
-
     if (!response.ok) {
       console.error('[Consulta] Fallo HTTP:', response.status, response.statusText);
       throw new Error(`Fallo en la API con status ${response.status}`);
@@ -96,17 +83,17 @@ Responde con información clara y profesional.
 
     const json = await response.json();
 
-    console.log('[Consulta] Respuesta IA:', json);
-
-    if (json.resultado) {
-      return m.reply(json.resultado);
+    if (json.content) {
+      console.log('[Consulta] Respuesta IA:', json);
+      return m.reply(json.content);
     } else {
+      console.log('[Consulta] Respuesta IA sin campo content:', json);
       throw new Error('Respuesta sin resultado de la IA');
     }
 
   } catch (e) {
     console.error('[❗] Error en el comando .consulta:', e);
-    return m.reply('Lo siento, no pude procesar tu solicitud en este momento. Detalles: ' + e.message);
+    return m.reply('Lo siento, ocurrió un error al procesar tu solicitud.');
   }
 };
 
