@@ -100,4 +100,11 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
         await conn.sendMessage(clientJid, { text: `✅ ¡Hola ${client.nombre}! Hemos registrado tu pago. Gracias por tu compra.` });
         
     } catch (error) {
-        console.
+        console.error('Error en el comando subircomprobante:', error);
+        return m.reply(`❌ Ocurrió un error al procesar el comprobante: ${error.message}`);
+    }
+}
+
+handler.help = ['subircomprobante <nombre_o_numero>'];
+handler.tags = ['pagos'];
+handler.command = ['subircomprobante'];
