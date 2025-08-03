@@ -338,7 +338,9 @@ export async function handler(m, conn, store) {
                             let clientList = '📊 *Lista de Clientes y Pagos:*\n\n';
                             for (const num in clientsData) {
                                 const client = clientsData[num];
-                                clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num.replace('@s.whatsapp.net', '')}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${client.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n----------------------------\n`;
+                                const pagoActual = client.pagos[0]; // Asume que el pago actual es el primer elemento del array
+                                const estadoPago = pagoActual.confirmado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
+                                clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${pagoActual.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado de Suspensión:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n*• Estado de Pago:* ${estadoPago}\n----------------------------\n`;
                             }
                             if (Object.keys(clientsData).length === 0) clientList = '❌ No hay clientes registrados.';
                             await conn.sendMessage(m.chat, { text: clientList }, { quoted: m });
