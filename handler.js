@@ -323,6 +323,15 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
+                if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
+                    await conn.sendMessage(m.chat, {
+                        text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
+                    });
+                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    return;
+                }
+            
+            if (buttonReplyHandled) {
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
