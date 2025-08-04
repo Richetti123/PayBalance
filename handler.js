@@ -647,7 +647,7 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                const ownerKeywords = ['creador', 'dueño', 'owner', 'administrador', 'admin', 'soporte', 'contactar'];
+                const ownerKeywords = ['creador', 'dueño', 'owner', 'administrador', 'admin', 'soporte', 'contactar', 'richetti'];
                 const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isOwnerContactIntent) {
@@ -698,7 +698,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log('[Consulta] Enviando petición a IA:', url);
+                    console.log(chalk.yellow('[Consulta] Enviando petición a IA:'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
