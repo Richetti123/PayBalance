@@ -213,8 +213,6 @@ const sendPaymentOptions = async (m, conn) => {
 };
 
 export async function handler(m, conn, store) {
-    console.log(chalk.yellow("[INFO] El handler se ha iniciado."));
-
     if (!m) return;
     if (m.key.fromMe) return;
 
@@ -317,7 +315,6 @@ export async function handler(m, conn, store) {
             });
         });
         const chatState = user?.chatState || 'initial';
-        console.log(`[DEBUG] ChatState del usuario: ${chatState}`);
 
         if (m.message) {
             let buttonReplyHandled = false;
@@ -336,24 +333,30 @@ export async function handler(m, conn, store) {
 
             if (buttonReplyHandled) {
                 m.text = buttonId;
-                console.log(`[DEBUG] Botón presionado. ID: ${buttonId}`);
+                console.log(chalk.yellow(`[DEBUG] Botón presionado. ID: ${buttonId}. ChatState: ${chatState}`));
                 
                 if (m.text === '.reactivate_chat') {
-                    console.log(`[DEBUG] Reactivando chat.`);
+                    console.log(chalk.green(`[DEBUG] Manejando botón de reactivación.`));
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
-                // Mover el manejo de la respuesta de pago a la función manejarRespuestaPago
-                if (await manejarRespuestaPago(m, conn)) {
-                    console.log(`[DEBUG] Respuesta de pago manejada por respuestapagos.js`);
-                    return;
+                if (chatState === 'awaitingPaymentResponse') {
+                    console.log(chalk.green(`[DEBUG] ChatState es 'awaitingPaymentResponse'. Llamando a manejarRespuestaPago.`));
+                    if (await manejarRespuestaPago(m, conn)) {
+                        console.log(chalk.green(`[DEBUG] Respuesta de pago manejada exitosamente.`));
+                        return;
+                    }
                 }
                 
                 if (await handlePaymentProofButton(m, conn)) {
-                    console.log(`[DEBUG] Botón de comprobante de pago manejado por respuestapagos.js`);
+                    console.log(chalk.green(`[DEBUG] Botón de comprobante de pago manejado exitosamente.`));
                     return;
                 }
+
+                console.log(chalk.red(`[DEBUG] Botón no manejado. El chatState no era el esperado.`));
+                m.reply('Lo siento, la acción que intentaste realizar no es válida en este momento. Por favor, intenta de nuevo o escribe "ayuda" para ver las opciones disponibles.');
+                return;
             }
         }
 
@@ -361,7 +364,7 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
-            console.log(`[DEBUG] Comprobante de pago detectado.`);
+            console.log(`[DEBUG] Comprobante de pago detectado. ChatState: ${chatState}`);
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
 
@@ -387,7 +390,7 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
-            console.log(`[DEBUG] Comando detectado: ${m.command}`);
+            console.log(chalk.blue(`[DEBUG] Comando detectado: ${m.command}`));
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -520,7 +523,7 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
-            console.log(`[DEBUG] Mensaje en chat privado. Procesando lógica de chatState.`);
+            console.log(chalk.blue(`[DEBUG] Mensaje en chat privado. Procesando lógica de chatState.`));
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
@@ -528,11 +531,11 @@ export async function handler(m, conn, store) {
             const messageTextLower = m.text.toLowerCase().trim();
 
             if (chatState === 'initial') {
-                console.log(`[DEBUG] chatState es 'initial'. Enviando mensaje de bienvenida.`);
+                console.log(chalk.green(`[DEBUG] chatState es 'initial'. Enviando mensaje de bienvenida.`));
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
-                console.log(`[DEBUG] chatState es 'awaitingName'. Procesando nombre.`);
+                console.log(chalk.yellow(`[DEBUG] chatState es 'awaitingName'. Procesando nombre.`));
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -577,19 +580,19 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active' || chatState === 'awaitingPaymentProof' || chatState === 'awaitingPaymentResponse') {
-                console.log(`[DEBUG] chatState es 'active' o relacionado con pagos. Procesando flujos de conversación.`);
+                console.log(chalk.blue(`[DEBUG] chatState es '${chatState}'. Procesando flujos de conversación.`));
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
-                    console.log(`[DEBUG] Despedida detectada.`);
+                    console.log(chalk.red(`[DEBUG] Despedida detectada.`));
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
-                    console.log(`[DEBUG] FAQ detectada y manejada.`);
+                    console.log(chalk.green(`[DEBUG] FAQ detectada y manejada.`));
                     return;
                 }
 
@@ -597,7 +600,7 @@ export async function handler(m, conn, store) {
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
                 if (paisEncontrado) {
-                    console.log(`[DEBUG] País detectado: ${paisEncontrado}`);
+                    console.log(chalk.yellow(`[DEBUG] País detectado: ${paisEncontrado}`));
                     const metodoPago = countryPaymentMethods[paisEncontrado];
                     if (metodoPago && metodoPago.length > 0) {
                         await m.reply(`¡Claro! Aquí tienes el método de pago para ${paisEncontrado}:` + metodoPago);
@@ -621,7 +624,7 @@ export async function handler(m, conn, store) {
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 
                 if (isPaymentInfoIntent) {
-                    console.log(`[DEBUG] Intención de consulta de información de pago detectada.`);
+                    console.log(chalk.yellow(`[DEBUG] Intención de consulta de información de pago detectada.`));
                     if (clientInfo) {
                         let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
                         
@@ -653,7 +656,7 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (isPaymentIntent) {
-                    console.log(`[DEBUG] Intención de realizar un pago detectada.`);
+                    console.log(chalk.green(`[DEBUG] Intención de realizar un pago detectada. Enviando opciones de pago.`));
                     await sendPaymentOptions(m, conn);
                     return;
                 }
@@ -662,7 +665,7 @@ export async function handler(m, conn, store) {
                 const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isOwnerContactIntent) {
-                    console.log(`[DEBUG] Intención de contactar al owner detectada.`);
+                    console.log(chalk.yellow(`[DEBUG] Intención de contactar al owner detectada.`));
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
@@ -709,7 +712,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log('[Consulta] Enviando petición a IA:', url);
+                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
