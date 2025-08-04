@@ -214,9 +214,6 @@ const sendPaymentOptions = async (m, conn) => {
 };
 
 export async function handler(m, conn, store) {
-    // [LOG AÑADIDO] Log para indicar que el handler se ha iniciado
-    console.log(chalk.yellow("[INFO] El handler se ha iniciado."));
-
     if (!m) return;
     if (m.key.fromMe) return;
 
@@ -326,15 +323,6 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
-                // [LOG AÑADIDO] Log para la respuesta del botón con ID '1'
-                if (m.text === '1') {
-                    console.log(chalk.magenta("[INFO] El usuario ha presionado el botón con ID '1' (He realizado el pago)."));
-                }
-                // [LOG AÑADIDO] Log para la respuesta del botón con ID '2'
-                if (m.text === '2') {
-                    console.log(chalk.magenta("[INFO] El usuario ha presionado el botón con ID '2' (Necesito ayuda con mi pago)."));
-                }
-
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
