@@ -64,8 +64,8 @@ const loadConfigBot = () => {
         mensajeBienvenida: "¡Hola {user}! Soy tu bot asistente de pagos. ¿En qué puedo ayudarte hoy?",
         mensajeDespedida: "¡Hasta pronto! Esperamos verte de nuevo.",
         faqs: {},
-        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente CashFlow. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
-        chatGreeting: "Hola soy CashFlow, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
+        mensajeDespedidaInactividad: "Hola, parece que la conversación terminó. Soy tu asistente PayBalance. ¿Necesitas algo más? Puedes reactivar la conversación enviando un nuevo mensaje o tocando el botón.",
+        chatGreeting: "Hola soy PayBalance, un asistente virtual. ¿Podrías brindarme tu nombre y decirme cuál es el motivo de tu consulta?"
     };
 };
 
@@ -330,20 +330,13 @@ export async function handler(m, conn, store) {
                     if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
                     return;
                 }
-            
-            if (buttonReplyHandled) {
+                
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
-                // Asegúrate de que manejarRespuestaPago se ejecute primero para los botones de usuario.
-                // handlePaymentProofButton es para los botones de admin, que tiene un prefijo específico.
-                if (await manejarRespuestaPago(m, conn)) {
-                    return;
-                }
-                // Luego, revisa si es un botón de admin.
-                if (await handlePaymentProofButton(m, conn)) {
+                if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
                     return;
                 }
             }
