@@ -311,19 +311,21 @@ export async function handler(m, conn, store) {
 
             if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
                 buttonId = m.message.buttonsResponseMessage.selectedButtonId;
+                m.text = buttonId;
                 buttonReplyHandled = true;
             } else if (m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
                 buttonId = m.message.templateButtonReplyMessage.selectedId;
+                m.text = buttonId;
                 buttonReplyHandled = true;
             } else if (m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
                 buttonId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+                m.text = buttonId;
                 buttonReplyHandled = true;
             }
 
             if (buttonReplyHandled) {
-                m.text = buttonId;
                 
-                // --- CORRECCIÓN IMPORTANTE: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
+                // --- CORRECCIÓN: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
                 const user = await new Promise((resolve, reject) => {
                     global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                         if (err) return resolve(null);
@@ -332,28 +334,30 @@ export async function handler(m, conn, store) {
                 });
                 const chatState = user?.chatState || 'initial';
                 
-                console.log(chalk.yellow(`[DEBUG] Botón presionado. ID: ${buttonId}. ChatState: ${chatState}`));
-                
                 if (m.text === '.reactivate_chat') {
-                    console.log(chalk.green(`[DEBUG] Manejando botón de reactivación.`));
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
                 if (chatState === 'awaitingPaymentResponse') {
-                    console.log(chalk.green(`[DEBUG] ChatState es 'awaitingPaymentResponse'. Llamando a manejarRespuestaPago.`));
                     if (await manejarRespuestaPago(m, conn)) {
-                        console.log(chalk.green(`[DEBUG] Respuesta de pago manejada exitosamente.`));
                         return;
                     }
                 }
                 
                 if (await handlePaymentProofButton(m, conn)) {
-                    console.log(chalk.green(`[DEBUG] Botón de comprobante de pago manejado exitosamente.`));
                     return;
                 }
-
-                console.log(chalk.red(`[DEBUG] Botón no manejado. El chatState no era el esperado.`));
+                
+                // Lógica original de tu archivo para manejar el botón '1'
+                if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
+                    await conn.sendMessage(m.chat, {
+                        text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
+                    });
+                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    return;
+                }
+                
                 m.reply('Lo siento, la acción que intentaste realizar no es válida en este momento. Por favor, intenta de nuevo o escribe "ayuda" para ver las opciones disponibles.');
                 return;
             }
@@ -714,31 +718,25 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
-                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                         return;
                     }
                     const json = await apiii.json();
                     
                     if (json.content) {
-                        console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.content);
                     } else {
-                        console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'content' válido.`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     }
                 } catch (e) {
-                    console.error(chalk.red(`[❗] Error al llamar a la API de IA: ${e.message}`));
                     m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
                 }
             }
         }
     } catch (e) {
-        console.error(chalk.red(`[❌] Error en messages.upsert: ${e.message || e}`));  
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
@@ -746,6 +744,5 @@ export async function handler(m, conn, store) {
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
     unwatchFile(file);
-    console.log(chalk.redBright("Se actualizó 'handler.js', recargando..."));
     import(`${file}?update=${Date.now()}`);
 });
