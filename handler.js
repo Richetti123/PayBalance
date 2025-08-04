@@ -307,6 +307,20 @@ export async function handler(m, conn, store) {
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
+        
+        // ******************** LÓGICA DE TEMPORIZADOR AÑADIDA ********************
+        // Solo aplica en chats privados
+        if (!m.isGroup) {
+            // Limpia el temporizador anterior si existe
+            if (inactivityTimers[m.sender]) {
+                clearTimeout(inactivityTimers[m.sender]);
+            }
+            // Establece un nuevo temporizador
+            inactivityTimers[m.sender] = setTimeout(() => {
+                handleInactivity(m, conn, m.sender);
+            }, INACTIVITY_TIMEOUT_MS);
+        }
+        // ******************** FIN LÓGICA DE TEMPORIZADOR ********************
 
         if (m.message) {
             let buttonReplyHandled = false;
