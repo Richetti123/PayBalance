@@ -567,7 +567,7 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
-                // --- INICIO DEL CÓDIGO CORREGIDO Y AMPLIADO ---
+                // --- INICIO DEL CÓDIGO CORREGIDO ---
                 const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                 const formattedSender = `+${m.sender.split('@')[0]}`;
                 const clientInfo = paymentsData[formattedSender];
@@ -575,27 +575,31 @@ export async function handler(m, conn, store) {
                 const paymentInfoKeywords = ['día de pago', 'dia de pago', 'fecha de pago', 'cuando pago', 'cuando me toca pagar', 'monto', 'cuanto debo', 'cuanto pagar', 'pais', 'país'];
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 
-                // Priorizar la consulta de información específica
                 const isPaymentInfoIntent = paymentInfoKeywords.some(keyword => messageTextLower.includes(keyword));
+                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
+                
                 if (isPaymentInfoIntent) {
                     if (clientInfo) {
                         let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
                         
-                        if (messageTextLower.includes('día de pago') || messageTextLower.includes('dia de pago') || messageTextLower.includes('cuando pago')) {
+                        // Añadir todos los datos disponibles si se detecta una intención de información
+                        if (clientInfo.diaPago) {
                             replyText += `🗓️ *Tu día de pago es el día ${clientInfo.diaPago} de cada mes.*\n`;
                         }
                         
-                        if (messageTextLower.includes('monto') || messageTextLower.includes('cuanto debo') || messageTextLower.includes('cuanto pagar')) {
+                        if (clientInfo.monto) {
                             replyText += `💰 *El monto que te toca pagar es de ${clientInfo.monto}.*\n`;
                         }
                         
-                        if (messageTextLower.includes('país') || messageTextLower.includes('pais')) {
+                        if (clientInfo.bandera) {
                             replyText += `🌍 *El país que tengo registrado para ti es ${clientInfo.bandera}.*\n`;
                         }
                         
                         if (clientInfo.pagos && clientInfo.pagos.length > 0) {
                             const ultimoPago = clientInfo.pagos[clientInfo.pagos.length - 1];
-                            replyText += `✅ *Tu último pago fue el ${ultimoPago.fecha}.*\n`;
+                            if (ultimoPago.fecha) {
+                                replyText += `✅ *Tu último pago fue el ${ultimoPago.fecha}.*\n`;
+                            }
                         }
                         
                         await m.reply(replyText);
@@ -607,13 +611,12 @@ export async function handler(m, conn, store) {
                 }
                 
                 // Luego, manejar la intención general de pago
-                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
                     const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
                 }
-                // --- FIN DEL CÓDIGO CORREGIDO Y AMPLIADO ---
+                // --- FIN DEL CÓDIGO CORREGIDO ---
 
                 
                 try {
