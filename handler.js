@@ -186,7 +186,6 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
-// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -201,7 +200,7 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Actualiza el chatState del usuario
+    // Se establece el chatState aquí
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -214,6 +213,8 @@ const sendPaymentOptions = async (m, conn) => {
 };
 
 export async function handler(m, conn, store) {
+    console.log(chalk.yellow("[INFO] El handler se ha iniciado."));
+
     if (!m) return;
     if (m.key.fromMe) return;
 
@@ -252,7 +253,6 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
-       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -307,33 +307,44 @@ export async function handler(m, conn, store) {
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
+        
+        const user = await new Promise((resolve, reject) => {
+            global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                if (err) {
+                    return resolve(null);
+                }
+                resolve(doc);
+            });
+        });
+        const chatState = user?.chatState || 'initial';
 
         if (m.message) {
             let buttonReplyHandled = false;
+            let buttonId = '';
 
             if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
-                m.text = m.message.buttonsResponseMessage.selectedButtonId;
+                buttonId = m.message.buttonsResponseMessage.selectedButtonId;
                 buttonReplyHandled = true;
             } else if (m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-                m.text = m.message.templateButtonReplyMessage.selectedId;
+                buttonId = m.message.templateButtonReplyMessage.selectedId;
                 buttonReplyHandled = true;
             } else if (m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
-                m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
+                buttonId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
                 buttonReplyHandled = true;
             }
 
             if (buttonReplyHandled) {
+                m.text = buttonId;
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
-                // Asegúrate de que manejarRespuestaPago se ejecute primero para los botones de usuario.
-                // handlePaymentProofButton es para los botones de admin, que tiene un prefijo específico.
+                // Mover el manejo de la respuesta de pago a la función manejarRespuestaPago
                 if (await manejarRespuestaPago(m, conn)) {
                     return;
                 }
-                // Luego, revisa si es un botón de admin.
+                
                 if (await handlePaymentProofButton(m, conn)) {
                     return;
                 }
@@ -507,20 +518,41 @@ export async function handler(m, conn, store) {
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
-            const user = await new Promise((resolve, reject) => {
-                global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
-                    if (err) {
-                        return resolve(null);
-                    }
-                    resolve(doc);
-                });
-            });
-
-            const chatState = user?.chatState || 'initial';
-            
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
-                return;
+                 if (chatState === 'awaitingPaymentProof') {
+                    const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
+                    let clientInfo = null;
+
+                    try {
+                        if (fs.existsSync(paymentsFilePath)) {
+                            const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+                            const formattedNumber = `+${m.sender.split('@')[0]}`;
+                            clientInfo = clientsData[formattedNumber];
+                        }
+                    } catch (e) {
+                        console.error("Error al leer pagos.json en handler.js:", e);
+                    }
+                    
+                    const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
+                    if (handledMedia) {
+                        // Después de manejar el comprobante, resetear el estado del chat
+                         await new Promise((resolve, reject) => {
+                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err) => {
+                                if (err) {
+                                    console.error("Error al actualizar chatState a 'initial' después del comprobante:", err);
+                                    return reject(err);
+                                }
+                                resolve();
+                            });
+                        });
+                        return;
+                    }
+                } else {
+                    await m.reply('He recibido un comprobante de pago, pero no estaba esperando uno. Si necesitas registrar un pago, por favor inicia el proceso primero.');
+                    return;
+                }
             }
+
             if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn);
                 return;
@@ -568,7 +600,7 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
-            } else if (chatState === 'active') {
+            } else if (chatState === 'active' || chatState === 'awaitingPaymentProof' || chatState === 'awaitingPaymentResponse') {
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -639,7 +671,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
                     await sendPaymentOptions(m, conn);
                     return;
@@ -652,7 +683,6 @@ export async function handler(m, conn, store) {
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
-
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -696,7 +726,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
+                    console.log('[Consulta] Enviando petición a IA:', url);
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
