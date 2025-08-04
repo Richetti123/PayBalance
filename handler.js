@@ -186,6 +186,7 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
+// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -200,6 +201,7 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
+    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -250,6 +252,7 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
+       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -307,62 +310,36 @@ export async function handler(m, conn, store) {
 
         if (m.message) {
             let buttonReplyHandled = false;
-            let buttonId = '';
 
             if (m.message.buttonsResponseMessage && m.message.buttonsResponseMessage.selectedButtonId) {
-                buttonId = m.message.buttonsResponseMessage.selectedButtonId;
-                m.text = buttonId;
+                m.text = m.message.buttonsResponseMessage.selectedButtonId;
                 buttonReplyHandled = true;
             } else if (m.message.templateButtonReplyMessage && m.message.templateButtonReplyMessage.selectedId) {
-                buttonId = m.message.templateButtonReplyMessage.selectedId;
-                m.text = buttonId;
+                m.text = m.message.templateButtonReplyMessage.selectedId;
                 buttonReplyHandled = true;
             } else if (m.message.listResponseMessage && m.message.listResponseMessage.singleSelectReply) {
-                buttonId = m.message.listResponseMessage.singleSelectReply.selectedRowId;
-                m.text = buttonId;
+                m.text = m.message.listResponseMessage.singleSelectReply.selectedRowId;
                 buttonReplyHandled = true;
             }
 
             if (buttonReplyHandled) {
-                
-                // --- CORRECCIÓN: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
-                const user = await new Promise((resolve, reject) => {
-                    global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
-                        if (err) return resolve(null);
-                        resolve(doc);
-                    });
-                });
-                const chatState = user?.chatState || 'initial';
-                
                 if (m.text === '.reactivate_chat') {
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
-                if (chatState === 'awaitingPaymentResponse') {
-                    if (await manejarRespuestaPago(m, conn)) {
-                        return;
-                    }
+                // Asegúrate de que manejarRespuestaPago se ejecute primero para los botones de usuario.
+                // handlePaymentProofButton es para los botones de admin, que tiene un prefijo específico.
+                if (await manejarRespuestaPago(m, conn)) {
+                    return;
                 }
-                
+                // Luego, revisa si es un botón de admin.
                 if (await handlePaymentProofButton(m, conn)) {
                     return;
                 }
-                
-                // Lógica original de tu archivo para manejar el botón '1'
-                if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
-                    await conn.sendMessage(m.chat, {
-                        text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
-                    });
-                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
-                    return;
-                }
-                
-                m.reply('Lo siento, la acción que intentaste realizar no es válida en este momento. Por favor, intenta de nuevo o escribe "ayuda" para ver las opciones disponibles.');
-                return;
             }
         }
-        
+
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
@@ -591,7 +568,7 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
-            } else if (chatState === 'active' || chatState === 'awaitingPaymentProof' || chatState === 'awaitingPaymentResponse') {
+            } else if (chatState === 'active') {
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -662,6 +639,7 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
+                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
                     await sendPaymentOptions(m, conn);
                     return;
@@ -718,25 +696,31 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
+                    console.log('[Consulta] Enviando petición a IA:', url);
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
+                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                         return;
                     }
                     const json = await apiii.json();
                     
                     if (json.content) {
+                        console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.content);
                     } else {
+                        console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'content' válido.`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     }
                 } catch (e) {
+                    console.error(chalk.red(`[❗] Error al llamar a la API de IA: ${e.message}`));
                     m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
                 }
             }
         }
     } catch (e) {
+        console.error(chalk.red(`[❌] Error en messages.upsert: ${e.message || e}`));  
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
@@ -744,5 +728,6 @@ export async function handler(m, conn, store) {
 let file = fileURLToPath(import.meta.url);
 watchFile(file, () => {
     unwatchFile(file);
+    console.log(chalk.redBright("Se actualizó 'handler.js', recargando..."));
     import(`${file}?update=${Date.now()}`);
 });
