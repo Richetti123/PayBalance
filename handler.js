@@ -567,7 +567,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
-                // --- INICIO DEL CÓDIGO CORREGIDO ---
                 const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
                 const formattedSender = `+${m.sender.split('@')[0]}`;
                 const clientInfo = paymentsData[formattedSender];
@@ -582,7 +581,6 @@ export async function handler(m, conn, store) {
                     if (clientInfo) {
                         let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
                         
-                        // Añadir todos los datos disponibles si se detecta una intención de información
                         if (clientInfo.diaPago) {
                             replyText += `🗓️ *Tu día de pago es el día ${clientInfo.diaPago} de cada mes.*\n`;
                         }
@@ -610,13 +608,22 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // Luego, manejar la intención general de pago
                 if (isPaymentIntent) {
                     const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
                 }
-                // --- FIN DEL CÓDIGO CORREGIDO ---
+                
+                // --- NUEVO CÓDIGO AÑADIDO PARA NOTIFICAR AL OWNER ---
+                const ownerKeywords = ['creador', 'dueño', 'owner', 'administrador', 'admin', 'soporte', 'contactar'];
+                const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
+
+                if (isOwnerContactIntent) {
+                    await notificarOwnerHandler(m, { conn });
+                    // No respondas aquí, el handler de notificarowner ya se encarga de enviar el mensaje al usuario.
+                    return;
+                }
+                // --- FIN DEL NUEVO CÓDIGO ---
 
                 
                 try {
@@ -661,7 +668,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
+                    console.log('[Consulta] Enviando petición a IA:', url);
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
@@ -671,7 +678,6 @@ export async function handler(m, conn, store) {
                     }
                     const json = await apiii.json();
                     
-                    // La API de turbo-ai usa el campo 'content', no 'resultado'
                     if (json.content) {
                         console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.content);
