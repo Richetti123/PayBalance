@@ -186,6 +186,33 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
+// Nueva función para enviar las opciones de pago y actualizar el estado
+const sendPaymentOptions = async (m, conn) => {
+    const paymentMessage = 'Selecciona la opción que deseas:';
+    const buttons = [
+        { buttonId: '1', buttonText: { displayText: 'He realizado el pago' }, type: 1 },
+        { buttonId: '2', buttonText: { displayText: 'Necesito ayuda con mi pago' }, type: 1 }
+    ];
+    const buttonMessage = {
+        text: paymentMessage,
+        buttons: buttons,
+        headerType: 1
+    };
+
+    await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
+
+    // Actualiza el chatState del usuario
+    await new Promise((resolve, reject) => {
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
+            if (err) {
+                console.error("Error al actualizar chatState a 'awaitingPaymentResponse':", err);
+                return reject(err);
+            }
+            resolve();
+        });
+    });
+};
+
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
@@ -612,9 +639,9 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
+                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
-                    const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
-                    await m.reply(paymentMessage);
+                    await sendPaymentOptions(m, conn);
                     return;
                 }
                 
@@ -669,7 +696,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
+                    console.log('[Consulta] Enviando petición a IA:', url);
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
