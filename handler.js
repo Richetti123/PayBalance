@@ -186,7 +186,6 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
-// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -201,7 +200,6 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -252,7 +250,6 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
-       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -326,7 +323,7 @@ export async function handler(m, conn, store) {
             if (buttonReplyHandled) {
                 m.text = buttonId;
                 
-                // --- CAMBIO IMPORTANTE: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
+                // --- CORRECCIÓN IMPORTANTE: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
                 const user = await new Promise((resolve, reject) => {
                     global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                         if (err) return resolve(null);
