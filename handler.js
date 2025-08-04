@@ -186,7 +186,6 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
-// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -201,7 +200,6 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -252,7 +250,6 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
-       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -328,12 +325,6 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // Asegúrate de que manejarRespuestaPago se ejecute primero para los botones de usuario.
-                // handlePaymentProofButton es para los botones de admin, que tiene un prefijo específico.
-                if (await manejarRespuestaPago(m, conn)) {
-                    return;
-                }
-                // Luego, revisa si es un botón de admin.
                 if (await handlePaymentProofButton(m, conn)) {
                     return;
                 }
@@ -521,6 +512,7 @@ export async function handler(m, conn, store) {
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
             }
+
             if (chatState === 'initial') {
                 await sendWelcomeMessage(m, conn);
                 return;
@@ -568,6 +560,50 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
+            } else if (chatState === 'awaitingPaymentResponse') {
+                 if (m.text === '1') {
+                    const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
+                    await m.reply(paymentMessage);
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
+                            if (err) {
+                                console.error("Error al actualizar chatState a 'awaitingPaymentProof':", err);
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    });
+                    return;
+                } else if (m.text === '2') {
+                    await notificarOwnerHandler(m, { conn });
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err) => {
+                            if (err) {
+                                console.error("Error al actualizar chatState a 'initial':", err);
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    });
+                    return;
+                } else {
+                    await m.reply('Por favor, selecciona una de las opciones del menú de pago.');
+                    // Mantener el estado para que el usuario pueda volver a intentarlo
+                    return;
+                }
+            } else if (chatState === 'awaitingPaymentProof') {
+                const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
+                const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
+                
+                if (esImagenConComprobante || esDocumentoConComprobante) {
+                    const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
+                    if (handledMedia) {
+                        return;
+                    }
+                } else {
+                    await m.reply('Por favor, envía la imagen o el documento del comprobante junto con el texto "Aquí está mi comprobante de pago" para que pueda procesarlo.');
+                }
+                return;
             } else if (chatState === 'active') {
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
@@ -639,7 +675,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
                     await sendPaymentOptions(m, conn);
                     return;
