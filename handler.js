@@ -317,6 +317,7 @@ export async function handler(m, conn, store) {
             });
         });
         const chatState = user?.chatState || 'initial';
+        console.log(`[DEBUG] ChatState del usuario: ${chatState}`);
 
         if (m.message) {
             let buttonReplyHandled = false;
@@ -335,17 +336,22 @@ export async function handler(m, conn, store) {
 
             if (buttonReplyHandled) {
                 m.text = buttonId;
+                console.log(`[DEBUG] Botón presionado. ID: ${buttonId}`);
+                
                 if (m.text === '.reactivate_chat') {
+                    console.log(`[DEBUG] Reactivando chat.`);
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
                 // Mover el manejo de la respuesta de pago a la función manejarRespuestaPago
                 if (await manejarRespuestaPago(m, conn)) {
+                    console.log(`[DEBUG] Respuesta de pago manejada por respuestapagos.js`);
                     return;
                 }
                 
                 if (await handlePaymentProofButton(m, conn)) {
+                    console.log(`[DEBUG] Botón de comprobante de pago manejado por respuestapagos.js`);
                     return;
                 }
             }
@@ -355,6 +361,7 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
+            console.log(`[DEBUG] Comprobante de pago detectado.`);
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
 
@@ -380,6 +387,7 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
+            console.log(`[DEBUG] Comando detectado: ${m.command}`);
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -512,51 +520,19 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
+            console.log(`[DEBUG] Mensaje en chat privado. Procesando lógica de chatState.`);
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
-            if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
-                 if (chatState === 'awaitingPaymentProof') {
-                    const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
-                    let clientInfo = null;
-
-                    try {
-                        if (fs.existsSync(paymentsFilePath)) {
-                            const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                            const formattedNumber = `+${m.sender.split('@')[0]}`;
-                            clientInfo = clientsData[formattedNumber];
-                        }
-                    } catch (e) {
-                        console.error("Error al leer pagos.json en handler.js:", e);
-                    }
-                    
-                    const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
-                    if (handledMedia) {
-                        // Después de manejar el comprobante, resetear el estado del chat
-                         await new Promise((resolve, reject) => {
-                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'initial' } }, {}, (err) => {
-                                if (err) {
-                                    console.error("Error al actualizar chatState a 'initial' después del comprobante:", err);
-                                    return reject(err);
-                                }
-                                resolve();
-                            });
-                        });
-                        return;
-                    }
-                } else {
-                    await m.reply('He recibido un comprobante de pago, pero no estaba esperando uno. Si necesitas registrar un pago, por favor inicia el proceso primero.');
-                    return;
-                }
-            }
-
             if (chatState === 'initial') {
+                console.log(`[DEBUG] chatState es 'initial'. Enviando mensaje de bienvenida.`);
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
+                console.log(`[DEBUG] chatState es 'awaitingName'. Procesando nombre.`);
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -601,16 +577,19 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active' || chatState === 'awaitingPaymentProof' || chatState === 'awaitingPaymentResponse') {
+                console.log(`[DEBUG] chatState es 'active' o relacionado con pagos. Procesando flujos de conversación.`);
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
+                    console.log(`[DEBUG] Despedida detectada.`);
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
+                    console.log(`[DEBUG] FAQ detectada y manejada.`);
                     return;
                 }
 
@@ -618,6 +597,7 @@ export async function handler(m, conn, store) {
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
                 if (paisEncontrado) {
+                    console.log(`[DEBUG] País detectado: ${paisEncontrado}`);
                     const metodoPago = countryPaymentMethods[paisEncontrado];
                     if (metodoPago && metodoPago.length > 0) {
                         await m.reply(`¡Claro! Aquí tienes el método de pago para ${paisEncontrado}:` + metodoPago);
@@ -641,6 +621,7 @@ export async function handler(m, conn, store) {
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 
                 if (isPaymentInfoIntent) {
+                    console.log(`[DEBUG] Intención de consulta de información de pago detectada.`);
                     if (clientInfo) {
                         let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
                         
@@ -672,6 +653,7 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (isPaymentIntent) {
+                    console.log(`[DEBUG] Intención de realizar un pago detectada.`);
                     await sendPaymentOptions(m, conn);
                     return;
                 }
@@ -680,6 +662,7 @@ export async function handler(m, conn, store) {
                 const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isOwnerContactIntent) {
+                    console.log(`[DEBUG] Intención de contactar al owner detectada.`);
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
