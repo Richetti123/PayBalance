@@ -301,7 +301,13 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                if (await handlePaymentProofButton(m, conn) || await manejarRespuestaPago(m, conn)) {
+                // Asegúrate de que manejarRespuestaPago se ejecute primero para los botones de usuario.
+                // handlePaymentProofButton es para los botones de admin, que tiene un prefijo específico.
+                if (await manejarRespuestaPago(m, conn)) {
+                    return;
+                }
+                // Luego, revisa si es un botón de admin.
+                if (await handlePaymentProofButton(m, conn)) {
                     return;
                 }
             }
@@ -364,9 +370,7 @@ export async function handler(m, conn, store) {
                             let clientList = '📊 *Lista de Clientes y Pagos:*\n\n';
                             for (const num in clientsData) {
                                 const client = clientsData[num];
-                                // Verifica la variable 'pagoRealizado'
                                 const estadoPago = client.pagoRealizado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
-                                
                                 const pagoActual = client.pagos && client.pagos[0] ? client.pagos[0] : { monto: 'N/A' };
                                 
                                 clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${pagoActual.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado de Suspensión:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n*• Estado de Pago:* ${estadoPago}\n----------------------------\n`;
@@ -614,16 +618,13 @@ export async function handler(m, conn, store) {
                     return;
                 }
                 
-                // --- NUEVO CÓDIGO AÑADIDO PARA NOTIFICAR AL OWNER ---
                 const ownerKeywords = ['creador', 'dueño', 'owner', 'administrador', 'admin', 'soporte', 'contactar'];
                 const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isOwnerContactIntent) {
                     await notificarOwnerHandler(m, { conn });
-                    // No respondas aquí, el handler de notificarowner ya se encarga de enviar el mensaje al usuario.
                     return;
                 }
-                // --- FIN DEL NUEVO CÓDIGO ---
 
                 
                 try {
@@ -668,7 +669,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log('[Consulta] Enviando petición a IA:', url);
+                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
