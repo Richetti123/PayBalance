@@ -708,7 +708,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log('[Consulta] Enviando petición a IA:', url);
+                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
