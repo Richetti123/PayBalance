@@ -186,6 +186,7 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
+// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -200,7 +201,7 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Se establece el chatState aquí
+    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -251,6 +252,7 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
+       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -305,16 +307,6 @@ export async function handler(m, conn, store) {
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
-        
-        const user = await new Promise((resolve, reject) => {
-            global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
-                if (err) {
-                    return resolve(null);
-                }
-                resolve(doc);
-            });
-        });
-        const chatState = user?.chatState || 'initial';
 
         if (m.message) {
             let buttonReplyHandled = false;
@@ -333,6 +325,16 @@ export async function handler(m, conn, store) {
 
             if (buttonReplyHandled) {
                 m.text = buttonId;
+                
+                // --- CAMBIO IMPORTANTE: OBTENEMOS EL ESTADO DE CHAT MÁS RECIENTE AQUÍ ---
+                const user = await new Promise((resolve, reject) => {
+                    global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                        if (err) return resolve(null);
+                        resolve(doc);
+                    });
+                });
+                const chatState = user?.chatState || 'initial';
+                
                 console.log(chalk.yellow(`[DEBUG] Botón presionado. ID: ${buttonId}. ChatState: ${chatState}`));
                 
                 if (m.text === '.reactivate_chat') {
@@ -359,12 +361,11 @@ export async function handler(m, conn, store) {
                 return;
             }
         }
-
+        
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
-            console.log(`[DEBUG] Comprobante de pago detectado. ChatState: ${chatState}`);
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
 
@@ -390,7 +391,6 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
-            console.log(chalk.blue(`[DEBUG] Comando detectado: ${m.command}`));
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -523,19 +523,30 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
-            console.log(chalk.blue(`[DEBUG] Mensaje en chat privado. Procesando lógica de chatState.`));
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
             const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
+            const user = await new Promise((resolve, reject) => {
+                global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                    if (err) {
+                        return resolve(null);
+                    }
+                    resolve(doc);
+                });
+            });
+
+            const chatState = user?.chatState || 'initial';
+            
+            if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
+                return;
+            }
             if (chatState === 'initial') {
-                console.log(chalk.green(`[DEBUG] chatState es 'initial'. Enviando mensaje de bienvenida.`));
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
-                console.log(chalk.yellow(`[DEBUG] chatState es 'awaitingName'. Procesando nombre.`));
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -580,19 +591,16 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active' || chatState === 'awaitingPaymentProof' || chatState === 'awaitingPaymentResponse') {
-                console.log(chalk.blue(`[DEBUG] chatState es '${chatState}'. Procesando flujos de conversación.`));
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
-                    console.log(chalk.red(`[DEBUG] Despedida detectada.`));
                     await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
                 const faqHandled = await getfaqHandler(m, { conn, text: m.text, command: 'getfaq', usedPrefix: m.prefix });
                 if (faqHandled) {
-                    console.log(chalk.green(`[DEBUG] FAQ detectada y manejada.`));
                     return;
                 }
 
@@ -600,7 +608,6 @@ export async function handler(m, conn, store) {
                 const paisEncontrado = paises.find(p => messageTextLower.includes(p));
 
                 if (paisEncontrado) {
-                    console.log(chalk.yellow(`[DEBUG] País detectado: ${paisEncontrado}`));
                     const metodoPago = countryPaymentMethods[paisEncontrado];
                     if (metodoPago && metodoPago.length > 0) {
                         await m.reply(`¡Claro! Aquí tienes el método de pago para ${paisEncontrado}:` + metodoPago);
@@ -624,7 +631,6 @@ export async function handler(m, conn, store) {
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 
                 if (isPaymentInfoIntent) {
-                    console.log(chalk.yellow(`[DEBUG] Intención de consulta de información de pago detectada.`));
                     if (clientInfo) {
                         let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
                         
@@ -656,7 +662,6 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (isPaymentIntent) {
-                    console.log(chalk.green(`[DEBUG] Intención de realizar un pago detectada. Enviando opciones de pago.`));
                     await sendPaymentOptions(m, conn);
                     return;
                 }
@@ -665,10 +670,10 @@ export async function handler(m, conn, store) {
                 const isOwnerContactIntent = ownerKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isOwnerContactIntent) {
-                    console.log(chalk.yellow(`[DEBUG] Intención de contactar al owner detectada.`));
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
+
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
