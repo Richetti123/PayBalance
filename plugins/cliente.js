@@ -93,16 +93,21 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
             }
 
             if (clientToView && clientJidToView) {
+                // CORRECCIÓN: Manejar monto y fecha de registro nulos o no válidos
+                const monto = clientToView.monto || (clientToView.pagos && clientToView.pagos[0]?.monto) || 'N/A';
+                const fechaRegistro = clientToView.fechaRegistro ? new Date(clientToView.fechaRegistro) : null;
+                const fechaRegistroStr = fechaRegistro && !isNaN(fechaRegistro) ? fechaRegistro.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
+
                 let clientInfo = `*👤 Información del Cliente:*\n\n`;
                 clientInfo += `*• Nombre:* ${clientToView.nombre}\n`;
                 clientInfo += `*• Número:* ${clientJidToView.replace('@s.whatsapp.net', '')}\n`;
-                clientInfo += `*• Día de Pago:* ${clientToView.diaPago}\n`;
-                clientInfo += `*• Monto:* ${clientToView.monto}\n`;
+                clientInfo += `*• Día de Pago:* ${clientToView.diaPago || 'N/A'}\n`;
+                clientInfo += `*• Monto:* ${monto}\n`;
                 clientInfo += `*• Bandera:* ${clientToView.bandera}\n`;
                 clientInfo += `*• Estado:* ${clientToView.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n`;
                 clientInfo += `*• Último Pago Verificado:* ${clientToView.ultimoPagoVerificado || 'N/A'}\n`;
                 clientInfo += `*• Clientes en Lote:* ${clientToView.clientesLote ? Object.keys(clientToView.clientesLote).length : 'N/A'}\n`;
-                clientInfo += `*• Fecha de Registro:* ${new Date(clientToView.fechaRegistro).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`;
+                clientInfo += `*• Fecha de Registro:* ${fechaRegistroStr}\n`;
                 
                 if (clientToView.clientesLote && Object.keys(clientToView.clientesLote).length > 0) {
                     clientInfo += `\n*Integrantes del Lote:*\n`;
@@ -116,7 +121,7 @@ let handler = async (m, { conn, text, command, usedPrefix, isOwner }) => {
                 await m.reply(`❌ No se encontró ningún cliente con el identificador "${identifierToView}".`);
             }
             break;
-
+            
         case 'editarcliente':
             if (args.length < 3) {
                 return m.reply(`*Uso correcto:* ${usedPrefix}${command} [número_o_nombre_cliente] [campo] [nuevo_valor]\nCampos: nombre, diaPago, monto, bandera\nEj: ${usedPrefix}${command} 5217771234567 nombre Juan Pérez\nEj: ${usedPrefix}${command} Juan Pérez monto 500.00`);
