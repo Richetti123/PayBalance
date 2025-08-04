@@ -538,7 +538,7 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active') {
-                const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido', 'adiós'];
+                const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
@@ -567,33 +567,53 @@ export async function handler(m, conn, store) {
                     return;
                 }
 
+                // --- INICIO DEL CÓDIGO CORREGIDO Y AMPLIADO ---
+                const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+                const formattedSender = `+${m.sender.split('@')[0]}`;
+                const clientInfo = paymentsData[formattedSender];
+
+                const paymentInfoKeywords = ['día de pago', 'dia de pago', 'fecha de pago', 'cuando pago', 'cuando me toca pagar', 'monto', 'cuanto debo', 'cuanto pagar', 'pais', 'país'];
+                const isPaymentInfoIntent = paymentInfoKeywords.some(keyword => messageTextLower.includes(keyword));
+                
                 const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
                 const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
+
+                // Lógica para responder si el cliente pregunta por sus datos específicos
+                if (isPaymentInfoIntent && clientInfo) {
+                    let replyText = `¡Hola, ${clientInfo.nombre}! Aquí está la información que tengo sobre tu cuenta:\n\n`;
+                    
+                    if (messageTextLower.includes('día de pago') || messageTextLower.includes('dia de pago') || messageTextLower.includes('cuando pago')) {
+                        replyText += `🗓️ *Tu día de pago es el día ${clientInfo.diaPago} de cada mes.*\n`;
+                    }
+                    
+                    if (messageTextLower.includes('monto') || messageTextLower.includes('cuanto debo') || messageTextLower.includes('cuanto pagar')) {
+                        replyText += `💰 *El monto que te toca pagar es de ${clientInfo.monto}.*\n`;
+                    }
+                    
+                    if (messageTextLower.includes('país') || messageTextLower.includes('pais')) {
+                        replyText += `🌍 *El país que tengo registrado para ti es ${clientInfo.bandera}.*\n`;
+                    }
+                    
+                    if (clientInfo.pagos && clientInfo.pagos.length > 0) {
+                        const ultimoPago = clientInfo.pagos[clientInfo.pagos.length - 1];
+                        replyText += `✅ *Tu último pago fue el ${ultimoPago.fecha}.*\n`;
+                    }
+                    
+                    await m.reply(replyText);
+                    return;
+                } else if (isPaymentInfoIntent && !clientInfo) {
+                    await m.reply('Lo siento, no he encontrado información de cliente asociada a tu número. Por favor, asegúrate de que tu cuenta esté registrada.');
+                    return;
+                }
+
+                // Lógica para responder si el cliente solo quiere realizar un pago (la lógica anterior)
                 if (isPaymentIntent) {
                     const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
                     await m.reply(paymentMessage);
                     return;
                 }
-                
-                const askForPrice = ['precio', 'cuanto cuesta', 'costo', 'valor'].some(keyword => messageTextLower.includes(keyword));
-                const askForInfo = ['más información', 'mas informacion', 'mas info'].some(keyword => messageTextLower.includes(keyword));
+                // --- FIN DEL CÓDIGO CORREGIDO Y AMPLIADO ---
 
-                if ((askForPrice || askForInfo) && userChatData.lastFaqSentKey) {
-                    const faqKey = userChatData.lastFaqSentKey;
-                    const faq = faqs[faqKey];
-                    if (faq) {
-                        let replyText = '';
-                        if (askForPrice) {
-                            replyText = faq.precio || `Lo siento, no tengo información de precio para "${faq.pregunta}".`;
-                        } else if (askForInfo) {
-                            replyText = `Claro, aquí tienes más información sobre el servicio "${faq.pregunta}":\n\n${faq.respuesta}`;
-                        }
-                        await m.reply(replyText);
-                        delete chatData[m.sender].lastFaqSentKey;
-                        saveChatData(chatData);
-                        return;
-                    }
-                }
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -637,7 +657,7 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA'));
+                    console.log('[Consulta] Enviando petición a IA:', url);
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
