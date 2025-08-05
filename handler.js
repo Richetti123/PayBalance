@@ -90,6 +90,15 @@ const countryPaymentMethods = {
     'colombia': ``
 };
 
+const normalizeJid = (jid) => {
+    if (!jid) return null;
+    let number = jid.split('@')[0];
+    if (number.startsWith('521')) {
+        number = '52' + number.substring(3);
+    }
+    return `${number}@s.whatsapp.net`;
+};
+
 const handleInactivity = async (m, conn, userId) => {
     try {
         const currentConfigData = loadConfigBot();
@@ -114,9 +123,10 @@ const handleInactivity = async (m, conn, userId) => {
             sections
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
-
+        
+        const normalizedId = normalizeJid(userId);
         await new Promise((resolve, reject) => {
-            global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'initial' } }, {}, (err) => {
                 if (err) {
                     console.error("Error al actualizar chatState a initial:", err);
                     return reject(err);
@@ -125,8 +135,8 @@ const handleInactivity = async (m, conn, userId) => {
             });
         });
         
-        console.log(chalk.green(`[SUCCESS] chatState de ${userId} actualizado a 'initial' por inactividad.`));
-        delete inactivityTimers[userId];
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'initial' por inactividad.`));
+        delete inactivityTimers[normalizedId];
         
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
@@ -145,6 +155,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
     console.log(chalk.yellow('[DEBUG] Entrando a sendWelcomeMessage.'));
     const currentConfigData = loadConfigBot();
     let welcomeMessage = '';
+    const normalizedId = normalizeJid(m.sender);
 
     if (!user || !user.nombre) {
         console.log(chalk.yellow('[DEBUG] El usuario no tiene nombre registrado. Solicitando nombre.'));
@@ -152,7 +163,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
         await m.reply(welcomeMessage);
         
         await new Promise((resolve, reject) => {
-            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
                 if (err) {
                     console.error("Error al actualizar chatState a awaitingName:", err);
                     return reject(err);
@@ -160,7 +171,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
                 resolve();
             });
         });
-        console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingName' correctamente.`));
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'awaitingName' correctamente.`));
         
     } else {
         console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${user.nombre}. Enviando menú de servicios.`));
@@ -185,7 +196,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
         
         await new Promise((resolve, reject) => {
-            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'active' } }, {}, (err) => {
                 if (err) {
                     console.error("Error al actualizar chatState a active:", err);
                     return reject(err);
@@ -193,7 +204,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
                 resolve();
             });
         });
-        console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'active' correctamente.`));
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'active' correctamente.`));
     }
 };
 
@@ -208,11 +219,12 @@ const sendPaymentOptions = async (m, conn) => {
         buttons: buttons,
         headerType: 1
     };
-
+    
+    const normalizedId = normalizeJid(m.sender);
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
     await new Promise((resolve, reject) => {
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
+        global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
                 console.error("Error al actualizar chatState a 'awaitingPaymentResponse':", err);
                 return reject(err);
@@ -220,7 +232,7 @@ const sendPaymentOptions = async (m, conn) => {
             resolve();
         });
     });
-    console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingPaymentResponse' correctamente.`));
+    console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'awaitingPaymentResponse' correctamente.`));
 };
 
 export async function handler(m, conn, store) {
@@ -232,8 +244,10 @@ export async function handler(m, conn, store) {
     const botRaw = botJid?.split('@')[0] || 'Desconocido';
     const botNumber = botRaw.split(':')[0];
     const botIdentifier = '+' + botNumber;
+    
+    const normalizedSender = normalizeJid(m.sender);
 
-    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
+    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || normalizedSender || '';
     const senderRaw = senderJid.split('@')[0] || 'Desconocido';
     const senderNumber = '+' + senderRaw.split(':')[0];
     const senderName = m.pushName || 'Desconocido';
@@ -274,15 +288,15 @@ export async function handler(m, conn, store) {
 
         m = smsg(conn, m);
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
-        m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
+        m.isOwner = m.isGroup ? m.key.participant === ownerJid : normalizedSender === ownerJid;
         m.prefix = '.';
         
         if (!m.isGroup) {
-            if (inactivityTimers[m.sender]) {
-                clearTimeout(inactivityTimers[m.sender]);
+            if (inactivityTimers[normalizedSender]) {
+                clearTimeout(inactivityTimers[normalizedSender]);
             }
-            inactivityTimers[m.sender] = setTimeout(() => {
-                handleInactivity(m, conn, m.sender);
+            inactivityTimers[normalizedSender] = setTimeout(() => {
+                handleInactivity(m, conn, normalizedSender);
             }, INACTIVITY_TIMEOUT_MS);
         }
 
@@ -308,7 +322,7 @@ export async function handler(m, conn, store) {
                     });
                     
                     await new Promise((resolve, reject) => {
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
+                        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
                             if (err) {
                                 console.error("Error al actualizar chatState a 'awaitingPaymentProof':", err);
                                 return reject(err);
@@ -316,13 +330,13 @@ export async function handler(m, conn, store) {
                             resolve();
                         });
                     });
-                    console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingPaymentProof' correctamente.`));
+                    console.log(chalk.green(`[SUCCESS] chatState de ${normalizedSender} actualizado a 'awaitingPaymentProof' correctamente.`));
                     return;
                 }
                 
                 if (m.text === '.reactivate_chat') {
                     console.log(chalk.blue('[DEBUG] Reactivando chat.'));
-                    const user = await global.db.data.users.findOne({ id: m.sender });
+                    const user = await global.db.data.users.findOne({ id: normalizedSender });
                     await sendWelcomeMessage(m, conn, user);
                     return;
                 }
@@ -499,7 +513,7 @@ export async function handler(m, conn, store) {
             const messageTextLower = m.text.toLowerCase().trim();
 
             const user = await new Promise((resolve, reject) => {
-                global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                global.db.data.users.findOne({ id: normalizedSender }, (err, doc) => {
                     if (err) {
                         console.error(chalk.red("Error al buscar usuario en DB:", err));
                         return resolve(null);
@@ -513,6 +527,44 @@ export async function handler(m, conn, store) {
             console.log(chalk.cyan(`[DEBUG] Estado de chat del usuario: ${chatState}, Nombre: ${userNombre || 'N/A'}`));
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
+                return;
+            }
+            
+            const nameMatch = messageTextLower.match(/^(?:soy|me llamo|mi nombre es)\s+(.*?)(?:\s+y|\s+quiero|$)/);
+            if (chatState === 'initial' && nameMatch && nameMatch[1]) {
+                console.log(chalk.cyan('[DEBUG] Mensaje parece ser un nombre. Procesando directamente para evitar bucle.'));
+                const name = nameMatch[1].trim();
+                const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+                        
+                await new Promise((resolve, reject) => {
+                    global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
+                        if (err) {
+                            console.error("Error al actualizar chatState y nombre a active:", err);
+                            return reject(err);
+                        }
+                        resolve();
+                    });
+                });
+                console.log(chalk.green(`[SUCCESS] Nombre guardado: ${capitalizedName}. Actualizando chatState a 'active'.`));
+                
+                const faqsList = Object.values(currentConfigData.faqs || {});
+                const sections = [{
+                    title: '⭐ Nuestros Servicios',
+                    rows: faqsList.map((faq) => ({
+                        title: faq.pregunta,
+                        rowId: `${faq.pregunta}`,
+                        description: `Toca para saber más sobre: ${faq.pregunta}`
+                    }))
+                }];
+
+                const listMessage = {
+                    text: `¡Hola ${capitalizedName}! ¿En qué puedo ayudarte hoy?`,
+                    footer: 'Toca el botón para ver nuestros servicios.',
+                    title: '📚 *Bienvenido/a*',
+                    buttonText: 'Ver Servicios',
+                    sections
+                };
+                await conn.sendMessage(m.chat, listMessage, { quoted: m });
                 return;
             }
 
@@ -542,7 +594,7 @@ export async function handler(m, conn, store) {
                         const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
                         
                         await new Promise((resolve, reject) => {
-                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
+                            global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
                                 if (err) {
                                     console.error("Error al actualizar chatState y nombre a active:", err);
                                     return reject(err);
