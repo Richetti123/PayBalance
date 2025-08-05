@@ -6,7 +6,7 @@ import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { handlePaymentProofButton, manejarRespuestaPago } from './lib/respuestapagos.js';
+import { handlePaymentProofButton, manejarRespuetaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js';
