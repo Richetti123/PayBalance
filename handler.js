@@ -238,41 +238,42 @@ const sendPaymentOptions = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-
-    if (!hasResetOnStartup) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        hasResetOnStartup = true;
-        lastResetTime = Date.now();
-    } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        lastResetTime = Date.now();
-    }
+    
+    // Eliminamos el reseteo global del estado del chat
+    // if (!hasResetOnStartup) {
+    //     const allUsers = await new Promise((resolve, reject) => {
+    //         global.db.data.users.find({}, (err, docs) => {
+    //             if (err) return reject(err);
+    //             resolve(docs);
+    //         });
+    //     });
+    //     if (allUsers.length > 0) {
+    //         await new Promise((resolve, reject) => {
+    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+    //                 if (err) return reject(err);
+    //                 resolve();
+    //             });
+    //         });
+    //     }
+    //     hasResetOnStartup = true;
+    //     lastResetTime = Date.now();
+    // } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
+    //     const allUsers = await new Promise((resolve, reject) => {
+    //         global.db.data.users.find({}, (err, docs) => {
+    //             if (err) return reject(err);
+    //             resolve(docs);
+    //         });
+    //     });
+    //     if (allUsers.length > 0) {
+    //         await new Promise((resolve, reject) => {
+    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+    //                 if (err) return reject(err);
+    //                 resolve();
+    //             });
+    //         });
+    //     }
+    //     lastResetTime = Date.now();
+    // }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
@@ -381,12 +382,11 @@ export async function handler(m, conn, store) {
             }
         }
         
-        // --- Nuevo bloque de código para responder a fotos ---
-        if (m.message?.imageMessage && !m.text) {
+        // Manejar las fotos con el mensaje específico
+        if (m.message?.imageMessage && !m.message?.imageMessage?.caption) {
             await m.reply("Si estas intentando mandar un comprobante de pago por favor envialo junto con el texto \"Aquí esta mi comprobante de pago\"");
             return;
         }
-        // --- Fin del nuevo bloque ---
 
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
@@ -571,8 +571,46 @@ export async function handler(m, conn, store) {
                 return;
             }
             if (chatState === 'initial') {
-                await sendWelcomeMessage(m, conn);
-                return;
+                const chatData = loadChatData();
+                const formattedSender = normalizarNumero(`+${m.sender.split('@')[0]}`);
+                const userChatData = chatData[formattedSender] || {};
+                
+                if (userChatData.nombre) {
+                    // Si el nombre ya está guardado, pasamos al estado 'active' directamente y enviamos el mensaje de bienvenida
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, { upsert: true }, (err) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    });
+                    
+                    const faqsList = Object.values(currentConfigData.faqs || {});
+                    const sections = [{
+                        title: '⭐ Nuestros Servicios',
+                        rows: faqsList.map((faq) => ({
+                            title: faq.pregunta,
+                            rowId: `${faq.pregunta}`,
+                            description: `Toca para saber más sobre: ${faq.pregunta}`
+                        }))
+                    }];
+
+                    const listMessage = {
+                        text: `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`,
+                        footer: 'Toca el botón para ver nuestros servicios.',
+                        title: '📚 *Bienvenido/a*',
+                        buttonText: 'Ver Servicios',
+                        sections
+                    };
+                    await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                    
+                    return;
+                } else {
+                    // Si el nombre no está, pedimos el nombre
+                    await sendWelcomeMessage(m, conn);
+                    return;
+                }
             } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
                     let name = '';
