@@ -167,8 +167,6 @@ const sendWelcomeMessage = async (m, conn) => {
     const userChatData = chatData[formattedSender] || {};
     let welcomeMessage = '';
 
-    console.log(chalk.bgYellow(`[DEBUG-WELCOME] Usuario ${m.sender} ha activado el mensaje de bienvenida. Su nombre es: ${userChatData.nombre}`));
-
     if (!userChatData.nombre) {
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
@@ -179,7 +177,6 @@ const sendWelcomeMessage = async (m, conn) => {
                     console.error("Error al actualizar chatState a awaitingName:", err);
                     return reject(err);
                 }
-                console.log(chalk.bgGreen(`[DEBUG-WELCOME] chatState actualizado a 'awaitingName' para ${m.sender}.`));
                 resolve();
             });
         });
@@ -211,7 +208,6 @@ const sendWelcomeMessage = async (m, conn) => {
                     console.error("Error al actualizar chatState a active:", err);
                     return reject(err);
                 }
-                console.log(chalk.bgGreen(`[DEBUG-WELCOME] chatState actualizado a 'active' para ${m.sender}.`));
                 resolve();
             });
         });
@@ -561,16 +557,13 @@ export async function handler(m, conn, store) {
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
-                        console.error(chalk.bgRed(`[DEBUG-DB] Error al buscar usuario en DB: ${err}`));
                         return resolve(null);
                     }
-                    console.log(chalk.bgYellow(`[DEBUG-DB] Usuario encontrado en DB: ${JSON.stringify(doc)}`));
                     resolve(doc);
                 });
             });
 
             const chatState = user?.chatState || 'initial';
-            console.log(chalk.bgYellow(`[DEBUG-STATE] El chatState actual para ${m.sender} es: ${chatState}`));
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
@@ -579,7 +572,6 @@ export async function handler(m, conn, store) {
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
-                console.log(chalk.bgYellow(`[DEBUG-FLOW] Entrando en el bloque 'awaitingName'. Mensaje del usuario: ${rawText}`));
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -593,23 +585,18 @@ export async function handler(m, conn, store) {
                         name = messageTextLower.split(' ')[0];
                     }
 
-                    console.log(chalk.bgYellow(`[DEBUG-NAME] Nombre extraído del mensaje: ${name}`));
                     if (name) {
                         const sender = m.sender;
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         
                         chatData[sender] = userChatData;
                         saveChatData(chatData);
-                        console.log(chalk.bgYellow(`[DEBUG-FILE] Nombre ${userChatData.nombre} guardado en chat_data.json para ${sender}`));
-
 
                         await new Promise((resolve, reject) => {
                             global.db.data.users.update({ id: sender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, { upsert: true }, (err) => {
                                 if (err) {
-                                    console.error(chalk.bgRed(`[DEBUG-DB-UPDATE] Error al actualizar DB para ${sender}: ${err}`));
                                     return reject(err);
                                 }
-                                console.log(chalk.bgGreen(`[DEBUG-DB-UPDATE] DB actualizada correctamente para ${sender}.`));
                                 resolve();
                             });
                         });
@@ -632,13 +619,11 @@ export async function handler(m, conn, store) {
                             sections
                         };
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
-                        console.log(chalk.bgGreen(`[DEBUG-FLOW] Mensaje de bienvenida con lista enviado para ${sender}.`));
                         
                         return;
                     }
                 }
             } else if (chatState === 'active') {
-                console.log(chalk.bgYellow(`[DEBUG-FLOW] Entrando en el bloque 'active'. Mensaje del usuario: ${rawText}`));
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido', 'adiòs', 'adiós'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -721,7 +706,6 @@ export async function handler(m, conn, store) {
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
-
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -765,31 +749,25 @@ export async function handler(m, conn, store) {
                     const encodedContent = encodeURIComponent(personaPrompt);
                     const encodedText = encodeURIComponent(m.text);
                     const url = `https://apis-starlights-team.koyeb.app/starlight/turbo-ai?content=${encodedContent}&text=${encodedText}`;
-                    console.log(chalk.yellow('[Consulta] Enviando petición a IA:'));
                     
                     const apiii = await fetch(url);
                     if (!apiii.ok) {
-                        console.error(chalk.red(`[❌] La API de IA respondió con un error de estado: ${apiii.status} ${apiii.statusText}`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                         return;
                     }
                     const json = await apiii.json();
                     
                     if (json.content) {
-                        console.log(chalk.green(`[✔️] Respuesta de la API de IA recibida correctamente.`));
                         m.reply(json.content);
                     } else {
-                        console.error(chalk.red(`[❌] La API de IA no devolvió un campo 'content' válido.`));
                         m.reply('Lo siento, no pude procesar tu solicitud. Intenta de nuevo más tarde.');
                     }
                 } catch (e) {
-                    console.error(chalk.red(`[❗] Error al llamar a la API de IA: ${e.message}`));
                     m.reply('Lo siento, no pude procesar tu solicitud. Ocurrió un error con el servicio de IA.');
                 }
             }
         }
     } catch (e) {
-        console.error(chalk.red(`[❌] Error en messages.upsert: ${e.message || e}`));  
         m.reply('Lo siento, ha ocurrido un error al procesar tu solicitud.');
     }
 }
