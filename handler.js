@@ -535,12 +535,27 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
+                        // Lógica para guardar el nombre del cliente con ambos formatos de número
+                        const originalJid = m.sender;
+                        const normalizedJid = normalizeJid(originalJid);
+
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
-                        chatData[normalizedSender] = userChatData;
+                        
+                        // Guardar en chatData con ambos JID
+                        chatData[originalJid] = userChatData;
+                        chatData[normalizedJid] = userChatData;
                         saveChatData(chatData);
-                        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState a active:", err);
+
+                        // Actualizar la base de datos de usuarios con ambos JID
+                        global.db.data.users.update({ id: originalJid }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
+                            if (err) console.error("Error al actualizar chatState para el JID original:", err);
                         });
+
+                        if (originalJid !== normalizedJid) {
+                            global.db.data.users.update({ id: normalizedJid }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
+                                if (err) console.error("Error al actualizar chatState para el JID normalizado:", err);
+                            });
+                        }
                         
                         const faqsList = Object.values(currentConfigData.faqs || {});
                         const sections = [{
