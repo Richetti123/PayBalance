@@ -1,5 +1,3 @@
-// plugins/registrarpago.js
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,12 +43,21 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
             return m.reply(`❌ El cliente con el número \`\`\`${clientNumber}\`\`\` ya existe en la base de datos.`);
         }
 
+        // --- INICIO DE LA CORRECCIÓN ---
         clientsData[clientNumber] = {
             nombre: clientName,
             diaPago: diaPago,
-            monto: monto,
-            bandera: bandera
+            bandera: bandera,
+            pagos: [
+                {
+                    monto: monto,
+                    fecha: new Date().toISOString().split('T')[0], // Guarda la fecha actual en formato YYYY-MM-DD
+                    confirmado: false,
+                    idComprobante: null
+                }
+            ]
         };
+        // --- FIN DE LA CORRECCIÓN ---
 
         fs.writeFileSync(paymentsFilePath, JSON.stringify(clientsData, null, 2), 'utf8');
 
@@ -60,13 +67,10 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
         console.error('Error al procesar el comando .registrarpago:', e);
         m.reply(`❌ Ocurrió un error interno al intentar añadir el cliente. Por favor, reporta este error.`);
     }
-} // <--- ¡Asegúrate de que esta llave de cierre es correcta y no hay un 'let handler =' anterior!
+}
 
 // Estas propiedades se pueden añadir directamente a la función 'handler' exportada
 handler.help = ['registrarpago <nombre> <numero> <diaPago> <monto> <bandera>'];
 handler.tags = ['pagos'];
 handler.command = /^(registrarpago|agregarcliente)$/i;
 handler.owner = true;
-
-// <--- ¡Eliminar esta línea! Ya no se necesita 'export default handler;'
-// export default handler;
