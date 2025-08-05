@@ -160,7 +160,17 @@ const sendWelcomeMessage = async (m, conn) => {
     const userChatData = chatData[m.sender] || {};
     let welcomeMessage = '';
 
-    if (!userChatData.nombre) {
+    const user = await new Promise((resolve, reject) => {
+        global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+            if (err) {
+                console.error(chalk.red("Error al buscar usuario en DB:", err));
+                return resolve(null);
+            }
+            resolve(doc);
+        });
+    });
+
+    if (!user || !user.nombre) {
         console.log(chalk.yellow('[DEBUG] El usuario no tiene nombre registrado. Solicitando nombre.'));
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
@@ -177,8 +187,8 @@ const sendWelcomeMessage = async (m, conn) => {
         console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingName' correctamente.`));
         
     } else {
-        console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${userChatData.nombre}. Enviando menú de servicios.`));
-        welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+        console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${user.nombre}. Enviando menú de servicios.`));
+        welcomeMessage = `¡Hola ${user.nombre}! ¿En qué puedo ayudarte hoy?`;
         const faqsList = Object.values(currentConfigData.faqs || {});
         const sections = [{
             title: '⭐ Nuestros Servicios',
@@ -547,8 +557,6 @@ export async function handler(m, conn, store) {
             console.log(chalk.cyan('[DEBUG] Mensaje en chat privado.'));
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
-            const chatData = loadChatData();
-            const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
             const user = await new Promise((resolve, reject) => {
@@ -586,26 +594,23 @@ export async function handler(m, conn, store) {
                         name = nombreEsMatch[1].trim();
                         console.log(chalk.blue(`[DEBUG] Nombre detectado por regex 'mi nombre es': ${name}`));
                     } else {
-                        // Corrección: Asumir que el mensaje completo es el nombre si no coincide con las regex
                         name = messageTextLower.trim();
                         console.log(chalk.blue(`[DEBUG] Asumiendo que el nombre es el mensaje completo: ${name}`));
                     }
 
                     if (name) {
-                        userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
-                        chatData[m.sender] = userChatData;
-                        saveChatData(chatData);
+                        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
                         
                         await new Promise((resolve, reject) => {
-                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
                                 if (err) {
-                                    console.error("Error al actualizar chatState a active:", err);
+                                    console.error("Error al actualizar chatState y nombre a active:", err);
                                     return reject(err);
                                 }
                                 resolve();
                             });
                         });
-                        console.log(chalk.green(`[SUCCESS] Nombre guardado: ${userChatData.nombre}. Actualizando chatState a 'active'.`));
+                        console.log(chalk.green(`[SUCCESS] Nombre guardado: ${capitalizedName}. Actualizando chatState a 'active'.`));
                         
                         const faqsList = Object.values(currentConfigData.faqs || {});
                         const sections = [{
@@ -618,7 +623,7 @@ export async function handler(m, conn, store) {
                         }];
 
                         const listMessage = {
-                            text: `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`,
+                            text: `¡Hola ${capitalizedName}! ¿En qué puedo ayudarte hoy?`,
                             footer: 'Toca el botón para ver nuestros servicios.',
                             title: '📚 *Bienvenido/a*',
                             buttonText: 'Ver Servicios',
@@ -733,13 +738,13 @@ export async function handler(m, conn, store) {
                     const clientInfoPrompt = !!paymentsData[formattedSender] ?
                         `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[formattedSender].nombre}, Día de pago: ${paymentsData[formattedSender].diaPago}, Monto: ${paymentsData[formattedSender].monto}, Bandera: ${paymentsData[formattedSender].bandera}. Su estado es ${paymentsData[formattedSender].suspendido ? 'suspendido' : 'activo'}.` :
                         `El usuario no es un cliente existente. Es un cliente potencial.`;
-                    const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
-                        `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
+                    const historicalChatPrompt = Object.keys(user?.chatData || {}).length > 0 ?
+                        `Datos previos de la conversación con este usuario: ${JSON.stringify(user.chatData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                         
                     const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
-                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
+                    El nombre del usuario es ${user?.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(user?.chatData || {})}.
                     
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
