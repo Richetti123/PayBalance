@@ -102,15 +102,6 @@ const countryPaymentMethods = {
     'colombia': ``
 };
 
-const normalizeJid = (jid) => {
-    if (!jid) return null;
-    let number = jid.split('@')[0];
-    if (number.startsWith('521')) {
-        number = '52' + number.substring(3);
-    }
-    return `${number}@s.whatsapp.net`;
-};
-
 const handleInactivity = async (m, conn, userId) => {
     try {
         const currentConfigData = loadConfigBot();
@@ -154,18 +145,17 @@ const handleGoodbye = async (m, conn, userId) => {
     }
 };
 
-const sendWelcomeMessage = async (m, conn, user) => {
+const sendWelcomeMessage = async (m, conn) => {
     const currentConfigData = loadConfigBot();
     const chatData = loadChatData();
-    const normalizedSender = normalizeJid(m.sender);
-    const userChatData = chatData[normalizedSender] || {};
+    const userChatData = chatData[m.sender] || {};
     let welcomeMessage = '';
 
     if (!userChatData.nombre) {
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
-        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a awaitingName:", err);
         });
         
@@ -190,7 +180,7 @@ const sendWelcomeMessage = async (m, conn, user) => {
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
         
-        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active' } }, {}, (err) => {
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a active:", err);
         });
     }
@@ -210,11 +200,10 @@ const sendPaymentOptions = async (m, conn) => {
     };
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
-    const normalizedSender = normalizeJid(m.sender);
 
     // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
-        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
+        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
                 console.error("Error al actualizar chatState a 'awaitingPaymentResponse':", err);
                 return reject(err);
@@ -271,8 +260,7 @@ export async function handler(m, conn, store) {
     const botNumber = botRaw.split(':')[0];
     const botIdentifier = '+' + botNumber;
 
-    const normalizedSender = normalizeJid(m.sender);
-    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || normalizedSender || '';
+    const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
     const senderRaw = senderJid.split('@')[0] || 'Desconocido';
     const senderNumber = '+' + senderRaw.split(':')[0];
 
@@ -317,19 +305,19 @@ export async function handler(m, conn, store) {
 
         m = smsg(conn, m);
         const ownerJid = `${BOT_OWNER_NUMBER}@s.whatsapp.net`;
-        m.isOwner = m.isGroup ? m.key.participant === ownerJid : normalizedSender === ownerJid;
+        m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
         
         // ******************** LÓGICA DE TEMPORIZADOR AÑADIDA ********************
         // Solo aplica en chats privados
         if (!m.isGroup) {
             // Limpia el temporizador anterior si existe
-            if (inactivityTimers[normalizedSender]) {
-                clearTimeout(inactivityTimers[normalizedSender]);
+            if (inactivityTimers[m.sender]) {
+                clearTimeout(inactivityTimers[m.sender]);
             }
             // Establece un nuevo temporizador
-            inactivityTimers[normalizedSender] = setTimeout(() => {
-                handleInactivity(m, conn, normalizedSender);
+            inactivityTimers[m.sender] = setTimeout(() => {
+                handleInactivity(m, conn, m.sender);
             }, INACTIVITY_TIMEOUT_MS);
         }
         // ******************** FIN LÓGICA DE TEMPORIZADOR ********************
@@ -353,13 +341,12 @@ export async function handler(m, conn, store) {
                     await conn.sendMessage(m.chat, {
                         text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
                     });
-                    if (normalizedSender) await global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
                     return;
                 }
                 
                 if (m.text === '.reactivate_chat') {
-                    const user = await global.db.data.users.findOne({ id: normalizedSender });
-                    await sendWelcomeMessage(m, conn, user);
+                    await sendWelcomeMessage(m, conn);
                     return;
                 }
                 
@@ -379,7 +366,7 @@ export async function handler(m, conn, store) {
             try {
                 if (fs.existsSync(paymentsFilePath)) {
                     const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                    const formattedNumber = `+${normalizedSender.split('@')[0]}`;
+                    const formattedNumber = `+${m.sender.split('@')[0]}`;
                     clientInfo = clientsData[formattedNumber];
                 }
             } catch (e) {
@@ -533,11 +520,11 @@ export async function handler(m, conn, store) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
-            const userChatData = chatData[normalizedSender] || {};
+            const userChatData = chatData[m.sender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
             const user = await new Promise((resolve, reject) => {
-                global.db.data.users.findOne({ id: normalizedSender }, (err, doc) => {
+                global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
                         return resolve(null);
                     }
@@ -551,7 +538,7 @@ export async function handler(m, conn, store) {
                 return;
             }
             if (chatState === 'initial') {
-                await sendWelcomeMessage(m, conn, user);
+                await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
@@ -569,9 +556,9 @@ export async function handler(m, conn, store) {
 
                     if (name) {
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
-                        chatData[normalizedSender] = userChatData;
+                        chatData[m.sender] = userChatData;
                         saveChatData(chatData);
-                        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
                         
@@ -602,7 +589,7 @@ export async function handler(m, conn, store) {
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
-                    await handleGoodbye(m, conn, normalizedSender);
+                    await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
@@ -621,14 +608,14 @@ export async function handler(m, conn, store) {
                     } else {
                         const noMethodMessage = `Lo siento, aún no tenemos un método de pago configurado para ${paisEncontrado}. Un moderador se pondrá en contacto contigo lo antes posible para ayudarte.`;
                         await m.reply(noMethodMessage);
-                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${normalizedSender ? normalizedSender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
+                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${m.sender ? m.sender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
                         await notificarOwnerHandler(m, { conn, text: ownerNotificationMessage, command: 'notificarowner', usedPrefix: m.prefix });
                     }
                     return;
                 }
 
                 const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                const formattedSender = `+${normalizedSender.split('@')[0]}`;
+                const formattedSender = `+${m.sender.split('@')[0]}`;
                 const clientInfo = paymentsData[formattedSender];
                 
                 const paymentInfoKeywords = ['día de pago', 'dia de pago', 'fecha de pago', 'cuando pago', 'cuando me toca pagar', 'monto', 'cuanto debo', 'cuanto pagar', 'pais', 'país'];
@@ -694,7 +681,7 @@ export async function handler(m, conn, store) {
                         '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
                     };
                     const methodsList = Object.values(paymentMethods).join('\n\n');
-                    const formattedSender = `+${normalizedSender.split('@')[0]}`;
+                    const formattedSender = `+${m.sender.split('@')[0]}`;
                     const clientInfoPrompt = !!paymentsData[formattedSender] ?
                         `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[formattedSender].nombre}, Día de pago: ${paymentsData[formattedSender].diaPago}, Monto: ${paymentsData[formattedSender].monto}, Bandera: ${paymentsData[formattedSender].bandera}. Su estado es ${paymentsData[formattedSender].suspendido ? 'suspendido' : 'activo'}.` :
                         `El usuario no es un cliente existente. Es un cliente potencial.`;
