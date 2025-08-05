@@ -108,30 +108,15 @@ const handleInactivity = async (m, conn, userId) => {
         const farewellMessage = currentConfigData.mensajeDespedidaInactividad
             .replace(/{user}/g, m.pushName || (m.sender ? m.sender.split('@')[0] : 'usuario'))
             .replace(/{bot}/g, conn.user.name || 'Bot');
-
-        const sections = [{
-            title: '❓ Retomar Conversación',
-            rows: [{
-                title: '➡️ Reactivar Chat',
-                rowId: `.reactivate_chat`,
-                description: 'Pulsa aquí para iniciar una nueva conversación.'
-            }]
-        }];
         
-        const listMessage = {
-            text: farewellMessage,
-            footer: 'Toca el botón para reactivar la conversación.',
-            title: '👋 *Hasta Pronto*',
-            buttonText: 'Retomar Conversación',
-            sections
-        };
-        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+        await conn.sendMessage(m.chat, {
+            text: farewellMessage
+        });
 
         global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a initial:", err);
         });
         delete inactivityTimers[userId];
-        
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
     }
@@ -139,7 +124,18 @@ const handleInactivity = async (m, conn, userId) => {
 
 const handleGoodbye = async (m, conn, userId) => {
     try {
-        await handleInactivity(m, conn, userId);
+        const currentConfigData = loadConfigBot();
+        const farewellMessage = currentConfigData.mensajeDespedidaInactividad
+            .replace(/{user}/g, m.pushName || (m.sender ? m.sender.split('@')[0] : 'usuario'))
+            .replace(/{bot}/g, conn.user.name || 'Bot');
+        
+        await conn.sendMessage(m.chat, {
+            text: farewellMessage
+        });
+        
+        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+            if (err) console.error("Error al actualizar chatState a initial:", err);
+        });
     } catch (e) {
         console.error('Error al manejar la despedida:', e);
     }
@@ -168,7 +164,7 @@ const sendWelcomeMessage = async (m, conn, userChatData) => {
                 description: `Toca para saber más sobre: ${faq.pregunta}`
             }))
         }];
-
+        
         const listMessage = {
             text: welcomeMessage,
             footer: 'Toca el botón para ver nuestros servicios.',
