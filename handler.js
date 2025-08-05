@@ -551,7 +551,7 @@ export async function handler(m, conn, store) {
                     } else if (nombreEsMatch && nombreEsMatch[1]) {
                         name = nombreEsMatch[1].trim();
                     } else {
-                        name = messageTextLower.split(' ')[0];
+                        name = messageTextLower.trim();
                     }
 
                     if (name) {
