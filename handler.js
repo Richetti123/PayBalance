@@ -53,7 +53,6 @@ const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function (
 
 const configBotPath = path.join(__dirname, 'src', 'configbot.json');
 const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
-const chatDataPath = path.join(__dirname, 'src', 'chat_data.json');
 
 const loadConfigBot = () => {
     if (fs.existsSync(configBotPath)) {
@@ -71,17 +70,6 @@ const loadConfigBot = () => {
 
 const saveConfigBot = (config) => {
     fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
-};
-
-const loadChatData = () => {
-    if (fs.existsSync(chatDataPath)) {
-        return JSON.parse(fs.readFileSync(chatDataPath, 'utf8'));
-    }
-    return {};
-};
-
-const saveChatData = (data) => {
-    fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
 const countryPaymentMethods = {
@@ -136,10 +124,19 @@ const handleInactivity = async (m, conn, userId) => {
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
         
-        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a initial:", err);
+        const normalizedId = normalizeJid(userId);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a initial:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
-        delete inactivityTimers[userId];
+        
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'initial' por inactividad.`));
+        delete inactivityTimers[normalizedId];
         
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
@@ -155,22 +152,30 @@ const handleGoodbye = async (m, conn, userId) => {
 };
 
 const sendWelcomeMessage = async (m, conn, user) => {
+    console.log(chalk.yellow('[DEBUG] Entrando a sendWelcomeMessage.'));
     const currentConfigData = loadConfigBot();
-    const chatData = loadChatData();
-    const normalizedSender = normalizeJid(m.sender);
-    const userChatData = chatData[normalizedSender] || {};
     let welcomeMessage = '';
+    const normalizedId = normalizeJid(m.sender);
 
-    if (!userChatData.nombre) {
+    if (!user || !user.nombre) {
+        console.log(chalk.yellow('[DEBUG] El usuario no tiene nombre registrado. Solicitando nombre.'));
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
-        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a awaitingName:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'awaitingName' correctamente.`));
         
     } else {
-        welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+        console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${user.nombre}. Enviando menú de servicios.`));
+        welcomeMessage = `¡Hola ${user.nombre}! ¿En qué puedo ayudarte hoy?`;
         const faqsList = Object.values(currentConfigData.faqs || {});
         const sections = [{
             title: '⭐ Nuestros Servicios',
@@ -190,66 +195,62 @@ const sendWelcomeMessage = async (m, conn, user) => {
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
         
-        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a active:", err);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'active' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a active:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
+        console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'active' correctamente.`));
     }
+};
+
+const sendPaymentOptions = async (m, conn) => {
+    const paymentMessage = 'Selecciona la opción que deseas:';
+    const buttons = [
+        { buttonId: '1', buttonText: { displayText: 'He realizado el pago' }, type: 1 },
+        { buttonId: '2', buttonText: { displayText: 'Necesito ayuda con mi pago' }, type: 1 }
+    ];
+    const buttonMessage = {
+        text: paymentMessage,
+        buttons: buttons,
+        headerType: 1
+    };
+    
+    const normalizedId = normalizeJid(m.sender);
+    await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
+
+    await new Promise((resolve, reject) => {
+        global.db.data.users.update({ id: normalizedId }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
+            if (err) {
+                console.error("Error al actualizar chatState a 'awaitingPaymentResponse':", err);
+                return reject(err);
+            }
+            resolve();
+        });
+    });
+    console.log(chalk.green(`[SUCCESS] chatState de ${normalizedId} actualizado a 'awaitingPaymentResponse' correctamente.`));
 };
 
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-
-    if (!hasResetOnStartup) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        hasResetOnStartup = true;
-        lastResetTime = Date.now();
-    } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        lastResetTime = Date.now();
-    }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
-    
     const botJid = conn?.user?.id || conn?.user?.jid || '';
     const botRaw = botJid?.split('@')[0] || 'Desconocido';
     const botNumber = botRaw.split(':')[0];
     const botIdentifier = '+' + botNumber;
-
-    const normalizedSender = normalizeJid(m.sender);
     
+    const normalizedSender = normalizeJid(m.sender);
+
     const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || normalizedSender || '';
     const senderRaw = senderJid.split('@')[0] || 'Desconocido';
     const senderNumber = '+' + senderRaw.split(':')[0];
-
     const senderName = m.pushName || 'Desconocido';
-
     let chatName = 'Chat Privado';
     if (isGroup) {
         try {
@@ -258,9 +259,7 @@ export async function handler(m, conn, store) {
             chatName = 'Grupo Desconocido';
         }
     }
-    
     const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
-
     const rawText =
         m.text ||
         m.message?.conversation ||
@@ -316,15 +315,27 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
+                console.log(chalk.blue(`[DEBUG] Mensaje con botón o lista. ID seleccionado: ${m.text}`));
                 if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
                     await conn.sendMessage(m.chat, {
                         text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
                     });
-                    if (normalizedSender) await global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
+                            if (err) {
+                                console.error("Error al actualizar chatState a 'awaitingPaymentProof':", err);
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    });
+                    console.log(chalk.green(`[SUCCESS] chatState de ${normalizedSender} actualizado a 'awaitingPaymentProof' correctamente.`));
                     return;
                 }
                 
                 if (m.text === '.reactivate_chat') {
+                    console.log(chalk.blue('[DEBUG] Reactivando chat.'));
                     const user = await global.db.data.users.findOne({ id: normalizedSender });
                     await sendWelcomeMessage(m, conn, user);
                     return;
@@ -340,19 +351,18 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
+            console.log(chalk.green('[DEBUG] Comprobante de pago detectado.'));
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
-
             try {
                 if (fs.existsSync(paymentsFilePath)) {
                     const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                    const formattedNumber = `+${normalizedSender.split('@')[0]}`;
+                    const formattedNumber = `+${m.sender.split('@')[0]}`;
                     clientInfo = clientsData[formattedNumber];
                 }
             } catch (e) {
                 console.error("Error al leer pagos.json en handler.js:", e);
             }
-            
             const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
             if (handledMedia) {
                 return;
@@ -365,6 +375,7 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
+            console.log(chalk.magenta(`[DEBUG] Comando detectado: ${m.command}`));
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -395,7 +406,6 @@ export async function handler(m, conn, store) {
                                 const client = clientsData[num];
                                 const estadoPago = client.pagoRealizado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
                                 const pagoActual = client.pagos && client.pagos[0] ? client.pagos[0] : { monto: 'N/A' };
-                                
                                 clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${pagoActual.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado de Suspensión:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n*• Estado de Pago:* ${estadoPago}\n----------------------------\n`;
                             }
                             if (Object.keys(clientsData).length === 0) clientList = '❌ No hay clientes registrados.';
@@ -497,15 +507,15 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
+            console.log(chalk.cyan('[DEBUG] Mensaje en chat privado.'));
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
-            const chatData = loadChatData();
-            const userChatData = chatData[normalizedSender] || {};
             const messageTextLower = m.text.toLowerCase().trim();
 
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: normalizedSender }, (err, doc) => {
                     if (err) {
+                        console.error(chalk.red("Error al buscar usuario en DB:", err));
                         return resolve(null);
                     }
                     resolve(doc);
@@ -513,14 +523,57 @@ export async function handler(m, conn, store) {
             });
 
             const chatState = user?.chatState || 'initial';
+            const userNombre = user?.nombre;
+            console.log(chalk.cyan(`[DEBUG] Estado de chat del usuario: ${chatState}, Nombre: ${userNombre || 'N/A'}`));
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
             }
+            
+            const nameMatch = messageTextLower.match(/^(?:soy|me llamo|mi nombre es)\s+(.*?)(?:\s+y|\s+quiero|$)/);
+            if (chatState === 'initial' && nameMatch && nameMatch[1]) {
+                console.log(chalk.cyan('[DEBUG] Mensaje parece ser un nombre. Procesando directamente para evitar bucle.'));
+                const name = nameMatch[1].trim();
+                const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
+                        
+                await new Promise((resolve, reject) => {
+                    global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
+                        if (err) {
+                            console.error("Error al actualizar chatState y nombre a active:", err);
+                            return reject(err);
+                        }
+                        resolve();
+                    });
+                });
+                console.log(chalk.green(`[SUCCESS] Nombre guardado: ${capitalizedName}. Actualizando chatState a 'active'.`));
+                
+                const faqsList = Object.values(currentConfigData.faqs || {});
+                const sections = [{
+                    title: '⭐ Nuestros Servicios',
+                    rows: faqsList.map((faq) => ({
+                        title: faq.pregunta,
+                        rowId: `${faq.pregunta}`,
+                        description: `Toca para saber más sobre: ${faq.pregunta}`
+                    }))
+                }];
+
+                const listMessage = {
+                    text: `¡Hola ${capitalizedName}! ¿En qué puedo ayudarte hoy?`,
+                    footer: 'Toca el botón para ver nuestros servicios.',
+                    title: '📚 *Bienvenido/a*',
+                    buttonText: 'Ver Servicios',
+                    sections
+                };
+                await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                return;
+            }
+
             if (chatState === 'initial') {
+                console.log(chalk.cyan('[DEBUG] Estado es "initial". Llamando a sendWelcomeMessage.'));
                 await sendWelcomeMessage(m, conn, user);
                 return;
             } else if (chatState === 'awaitingName') {
+                console.log(chalk.cyan('[DEBUG] Estado es "awaitingName". Procesando la respuesta del nombre.'));
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -528,34 +581,28 @@ export async function handler(m, conn, store) {
 
                     if (soyMatch && soyMatch[1]) {
                         name = soyMatch[1].trim();
+                        console.log(chalk.blue(`[DEBUG] Nombre detectado por regex 'soy': ${name}`));
                     } else if (nombreEsMatch && nombreEsMatch[1]) {
                         name = nombreEsMatch[1].trim();
+                        console.log(chalk.blue(`[DEBUG] Nombre detectado por regex 'mi nombre es': ${name}`));
                     } else {
-                        name = messageTextLower.split(' ')[0];
+                        name = messageTextLower.trim();
+                        console.log(chalk.blue(`[DEBUG] Asumiendo que el nombre es el mensaje completo: ${name}`));
                     }
 
                     if (name) {
-                        // Lógica para guardar el nombre del cliente con ambos formatos de número
-                        const originalJid = m.sender;
-                        const normalizedJid = normalizeJid(originalJid);
-
-                        userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
+                        const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
                         
-                        // Guardar en chatData con ambos JID
-                        chatData[originalJid] = userChatData;
-                        chatData[normalizedJid] = userChatData;
-                        saveChatData(chatData);
-
-                        // Actualizar la base de datos de usuarios con ambos JID
-                        global.db.data.users.update({ id: originalJid }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState para el JID original:", err);
-                        });
-
-                        if (originalJid !== normalizedJid) {
-                            global.db.data.users.update({ id: normalizedJid }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, {}, (err) => {
-                                if (err) console.error("Error al actualizar chatState para el JID normalizado:", err);
+                        await new Promise((resolve, reject) => {
+                            global.db.data.users.update({ id: normalizedSender }, { $set: { chatState: 'active', nombre: capitalizedName } }, {}, (err) => {
+                                if (err) {
+                                    console.error("Error al actualizar chatState y nombre a active:", err);
+                                    return reject(err);
+                                }
+                                resolve();
                             });
-                        }
+                        });
+                        console.log(chalk.green(`[SUCCESS] Nombre guardado: ${capitalizedName}. Actualizando chatState a 'active'.`));
                         
                         const faqsList = Object.values(currentConfigData.faqs || {});
                         const sections = [{
@@ -568,7 +615,7 @@ export async function handler(m, conn, store) {
                         }];
 
                         const listMessage = {
-                            text: `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`,
+                            text: `¡Hola ${capitalizedName}! ¿En qué puedo ayudarte hoy?`,
                             footer: 'Toca el botón para ver nuestros servicios.',
                             title: '📚 *Bienvenido/a*',
                             buttonText: 'Ver Servicios',
@@ -577,14 +624,18 @@ export async function handler(m, conn, store) {
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
                         
                         return;
+                    } else {
+                        console.log(chalk.yellow('[DEBUG] No se pudo extraer un nombre válido. Repitiendo el mensaje de solicitud de nombre.'));
+                        await m.reply("Lo siento, no pude entender tu nombre. Por favor, ¿podrías indicarme tu nombre?");
                     }
                 }
             } else if (chatState === 'active') {
+                console.log(chalk.cyan('[DEBUG] Estado es "active". Manejando conversación normal.'));
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
                 if (isGoodbye) {
-                    await handleGoodbye(m, conn, normalizedSender);
+                    await handleGoodbye(m, conn, m.sender);
                     return;
                 }
                 
@@ -603,14 +654,14 @@ export async function handler(m, conn, store) {
                     } else {
                         const noMethodMessage = `Lo siento, aún no tenemos un método de pago configurado para ${paisEncontrado}. Un moderador se pondrá en contacto contigo lo antes posible para ayudarte.`;
                         await m.reply(noMethodMessage);
-                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${normalizedSender ? normalizedSender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
+                        const ownerNotificationMessage = `El usuario ${user.nombre} (+${m.sender ? m.sender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
                         await notificarOwnerHandler(m, { conn, text: ownerNotificationMessage, command: 'notificarowner', usedPrefix: m.prefix });
                     }
                     return;
                 }
 
                 const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                const formattedSender = `+${normalizedSender.split('@')[0]}`;
+                const formattedSender = `+${m.sender.split('@')[0]}`;
                 const clientInfo = paymentsData[formattedSender];
                 
                 const paymentInfoKeywords = ['día de pago', 'dia de pago', 'fecha de pago', 'cuando pago', 'cuando me toca pagar', 'monto', 'cuanto debo', 'cuanto pagar', 'pais', 'país'];
@@ -651,17 +702,7 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (isPaymentIntent) {
-                    const paymentMessage = 'Selecciona la opción que deseas:';
-                    const buttons = [
-                        { buttonId: '1', buttonText: { displayText: 'He realizado el pago' }, type: 1 },
-                        { buttonId: '2', buttonText: { displayText: 'Necesito ayuda con mi pago' }, type: 1 }
-                    ];
-                    const buttonMessage = {
-                        text: paymentMessage,
-                        buttons: buttons,
-                        headerType: 1
-                    };
-                    await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
+                    await sendPaymentOptions(m, conn);
                     return;
                 }
                 
@@ -672,7 +713,6 @@ export async function handler(m, conn, store) {
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
-
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -685,17 +725,17 @@ export async function handler(m, conn, store) {
                         '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
                     };
                     const methodsList = Object.values(paymentMethods).join('\n\n');
-                    const formattedSender = `+${normalizedSender.split('@')[0]}`;
+                    const formattedSender = `+${m.sender.split('@')[0]}`;
                     const clientInfoPrompt = !!paymentsData[formattedSender] ?
                         `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[formattedSender].nombre}, Día de pago: ${paymentsData[formattedSender].diaPago}, Monto: ${paymentsData[formattedSender].monto}, Bandera: ${paymentsData[formattedSender].bandera}. Su estado es ${paymentsData[formattedSender].suspendido ? 'suspendido' : 'activo'}.` :
                         `El usuario no es un cliente existente. Es un cliente potencial.`;
-                    const historicalChatPrompt = Object.keys(userChatData).length > 0 ?
-                        `Datos previos de la conversación con este usuario: ${JSON.stringify(userChatData)}.` :
+                    const historicalChatPrompt = Object.keys(user?.chatData || {}).length > 0 ?
+                        `Datos previos de la conversación con este usuario: ${JSON.stringify(user.chatData)}.` :
                         `No hay datos previos de conversación con este usuario.`;
                         
                     const personaPrompt = `Eres CashFlow, un asistente virtual profesional para la atención al cliente de Richetti. Tu objetivo es ayudar a los clientes con consultas sobre pagos y servicios. No uses frases como "Estoy aquí para ayudarte", "Como tu asistente...", "Como un asistente virtual" o similares. Ve directo al punto y sé conciso.
                     
-                    El nombre del usuario es ${userChatData.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(userChatData)}.
+                    El nombre del usuario es ${user?.nombre || 'el usuario'} y el historial de chat con datos previos es: ${JSON.stringify(user?.chatData || {})}.
                     
                     Instrucciones:
                     - Responde de forma concisa, útil y profesional.
