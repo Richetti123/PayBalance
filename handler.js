@@ -53,7 +53,6 @@ const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(function (
 
 const configBotPath = path.join(__dirname, 'src', 'configbot.json');
 const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
-const chatDataPath = path.join(__dirname, 'src', 'chat_data.json');
 
 const loadConfigBot = () => {
     if (fs.existsSync(configBotPath)) {
@@ -71,17 +70,6 @@ const loadConfigBot = () => {
 
 const saveConfigBot = (config) => {
     fs.writeFileSync(configBotPath, JSON.stringify(config, null, 2), 'utf8');
-};
-
-const loadChatData = () => {
-    if (fs.existsSync(chatDataPath)) {
-        return JSON.parse(fs.readFileSync(chatDataPath, 'utf8'));
-    }
-    return {};
-};
-
-const saveChatData = (data) => {
-    fs.writeFileSync(chatDataPath, JSON.stringify(data, null, 2), 'utf8');
 };
 
 const countryPaymentMethods = {
@@ -153,22 +141,10 @@ const handleGoodbye = async (m, conn, userId) => {
     }
 };
 
-const sendWelcomeMessage = async (m, conn) => {
+const sendWelcomeMessage = async (m, conn, user) => {
     console.log(chalk.yellow('[DEBUG] Entrando a sendWelcomeMessage.'));
     const currentConfigData = loadConfigBot();
-    const chatData = loadChatData();
-    const userChatData = chatData[m.sender] || {};
     let welcomeMessage = '';
-
-    const user = await new Promise((resolve, reject) => {
-        global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
-            if (err) {
-                console.error(chalk.red("Error al buscar usuario en DB:", err));
-                return resolve(null);
-            }
-            resolve(doc);
-        });
-    });
 
     if (!user || !user.nombre) {
         console.log(chalk.yellow('[DEBUG] El usuario no tiene nombre registrado. Solicitando nombre.'));
@@ -221,7 +197,6 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
-// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -236,7 +211,6 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -252,42 +226,6 @@ const sendPaymentOptions = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-
-    // --- COMENTADO: Bloque de reinicio que podría estar causando el problema ---
-    // if (!hasResetOnStartup) {
-    //     const allUsers = await new Promise((resolve, reject) => {
-    //         global.db.data.users.find({}, (err, docs) => {
-    //             if (err) return reject(err);
-    //             resolve(docs);
-    //         });
-    //     });
-    //     if (allUsers.length > 0) {
-    //         await new Promise((resolve, reject) => {
-    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-    //                 if (err) return reject(err);
-    //                 resolve();
-    //             });
-    //         });
-    //     }
-    //     hasResetOnStartup = true;
-    //     lastResetTime = Date.now();
-    // } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
-    //     const allUsers = await new Promise((resolve, reject) => {
-    //         global.db.data.users.find({}, (err, docs) => {
-    //             if (err) return reject(err);
-    //             resolve(docs);
-    //         });
-    //     });
-    //     if (allUsers.length > 0) {
-    //         await new Promise((resolve, reject) => {
-    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-    //                 if (err) return reject(err);
-    //                 resolve();
-    //             });
-    //         });
-    //     }
-    //     lastResetTime = Date.now();
-    // }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -384,7 +322,8 @@ export async function handler(m, conn, store) {
                 
                 if (m.text === '.reactivate_chat') {
                     console.log(chalk.blue('[DEBUG] Reactivando chat.'));
-                    await sendWelcomeMessage(m, conn);
+                    const user = await global.db.data.users.findOne({ id: m.sender });
+                    await sendWelcomeMessage(m, conn, user);
                     return;
                 }
                 
@@ -570,15 +509,16 @@ export async function handler(m, conn, store) {
             });
 
             const chatState = user?.chatState || 'initial';
-            console.log(chalk.cyan(`[DEBUG] Estado de chat del usuario: ${chatState}`));
+            const userNombre = user?.nombre;
+            console.log(chalk.cyan(`[DEBUG] Estado de chat del usuario: ${chatState}, Nombre: ${userNombre || 'N/A'}`));
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
             }
-            
+
             if (chatState === 'initial') {
                 console.log(chalk.cyan('[DEBUG] Estado es "initial". Llamando a sendWelcomeMessage.'));
-                await sendWelcomeMessage(m, conn);
+                await sendWelcomeMessage(m, conn, user);
                 return;
             } else if (chatState === 'awaitingName') {
                 console.log(chalk.cyan('[DEBUG] Estado es "awaitingName". Procesando la respuesta del nombre.'));
@@ -662,7 +602,7 @@ export async function handler(m, conn, store) {
                     } else {
                         const noMethodMessage = `Lo siento, aún no tenemos un método de pago configurado para ${paisEncontrado}. Un moderador se pondrá en contacto contigo lo antes posible para ayudarte.`;
                         await m.reply(noMethodMessage);
-                        const ownerNotificationMessage = `El usuario ${m.pushName} (+${m.sender ? m.sender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
+                        const ownerNotificationMessage = `El usuario ${user.nombre} (+${m.sender ? m.sender.split('@')[0] : 'N/A'}) ha preguntado por un método de pago en ${paisEncontrado}, pero no está configurado.`;
                         await notificarOwnerHandler(m, { conn, text: ownerNotificationMessage, command: 'notificarowner', usedPrefix: m.prefix });
                     }
                     return;
@@ -721,7 +661,6 @@ export async function handler(m, conn, store) {
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
-
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
