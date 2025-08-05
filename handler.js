@@ -108,15 +108,30 @@ const handleInactivity = async (m, conn, userId) => {
         const farewellMessage = currentConfigData.mensajeDespedidaInactividad
             .replace(/{user}/g, m.pushName || (m.sender ? m.sender.split('@')[0] : 'usuario'))
             .replace(/{bot}/g, conn.user.name || 'Bot');
+
+        const sections = [{
+            title: '❓ Retomar Conversación',
+            rows: [{
+                title: '➡️ Reactivar Chat',
+                rowId: `.reactivate_chat`,
+                description: 'Pulsa aquí para iniciar una nueva conversación.'
+            }]
+        }];
         
-        await conn.sendMessage(m.chat, {
-            text: farewellMessage
-        });
+        const listMessage = {
+            text: farewellMessage,
+            footer: 'Toca el botón para reactivar la conversación.',
+            title: '👋 *Hasta Pronto*',
+            buttonText: 'Retomar Conversación',
+            sections
+        };
+        await conn.sendMessage(m.chat, listMessage, { quoted: m });
 
         global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
             if (err) console.error("Error al actualizar chatState a initial:", err);
         });
         delete inactivityTimers[userId];
+        
     } catch (e) {
         console.error('Error al enviar mensaje de inactividad:', e);
     }
@@ -124,18 +139,7 @@ const handleInactivity = async (m, conn, userId) => {
 
 const handleGoodbye = async (m, conn, userId) => {
     try {
-        const currentConfigData = loadConfigBot();
-        const farewellMessage = currentConfigData.mensajeDespedidaInactividad
-            .replace(/{user}/g, m.pushName || (m.sender ? m.sender.split('@')[0] : 'usuario'))
-            .replace(/{bot}/g, conn.user.name || 'Bot');
-        
-        await conn.sendMessage(m.chat, {
-            text: farewellMessage
-        });
-        
-        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a initial:", err);
-        });
+        await handleInactivity(m, conn, userId);
     } catch (e) {
         console.error('Error al manejar la despedida:', e);
     }
@@ -143,41 +147,29 @@ const handleGoodbye = async (m, conn, userId) => {
 
 const sendWelcomeMessage = async (m, conn, userChatData) => {
     const currentConfigData = loadConfigBot();
-    let welcomeMessage = '';
+    let welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+    const faqsList = Object.values(currentConfigData.faqs || {});
+    const sections = [{
+        title: '⭐ Nuestros Servicios',
+        rows: faqsList.map((faq) => ({
+            title: faq.pregunta,
+            rowId: `${faq.pregunta}`,
+            description: `Toca para saber más sobre: ${faq.pregunta}`
+        }))
+    }];
 
-    if (!userChatData.nombre) {
-        welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
-        await m.reply(welcomeMessage);
-        
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a awaitingName:", err);
-        });
-        
-    } else {
-        welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
-        const faqsList = Object.values(currentConfigData.faqs || {});
-        const sections = [{
-            title: '⭐ Nuestros Servicios',
-            rows: faqsList.map((faq) => ({
-                title: faq.pregunta,
-                rowId: `${faq.pregunta}`,
-                description: `Toca para saber más sobre: ${faq.pregunta}`
-            }))
-        }];
-        
-        const listMessage = {
-            text: welcomeMessage,
-            footer: 'Toca el botón para ver nuestros servicios.',
-            title: '📚 *Bienvenido/a*',
-            buttonText: 'Ver Servicios',
-            sections
-        };
-        await conn.sendMessage(m.chat, listMessage, { quoted: m });
-        
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a active:", err);
-        });
-    }
+    const listMessage = {
+        text: welcomeMessage,
+        footer: 'Toca el botón para ver nuestros servicios.',
+        title: '📚 *Bienvenido/a*',
+        buttonText: 'Ver Servicios',
+        sections
+    };
+    await conn.sendMessage(m.chat, listMessage, { quoted: m });
+    
+    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+        if (err) console.error("Error al actualizar chatState a active:", err);
+    });
 };
 
 const sendPaymentOptions = async (m, conn) => {
@@ -332,7 +324,22 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (m.text === '.reactivate_chat') {
-                    await sendWelcomeMessage(m, conn);
+                    const user = await new Promise((resolve, reject) => {
+                        global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
+                            if (err) {
+                                return resolve(null);
+                            }
+                            resolve(doc);
+                        });
+                    });
+                    const chatData = loadChatData();
+                    const userChatData = chatData[m.sender] || {};
+
+                    if (userChatData.nombre) {
+                        await sendWelcomeMessage(m, conn, userChatData);
+                    } else {
+                        await sendWelcomeMessage(m, conn, {});
+                    }
                     return;
                 }
                 
@@ -514,8 +521,13 @@ export async function handler(m, conn, store) {
                     resolve(doc);
                 });
             });
+            const userChatData = chatData[m.sender] || {};
+            let chatState = user?.chatState || 'initial';
 
-            const chatState = user?.chatState || 'initial';
+            if (userChatData.nombre && chatState === 'initial') {
+                chatState = 'active';
+            }
+
             const messageTextLower = m.text.toLowerCase().trim();
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
@@ -545,7 +557,6 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
-                        const userChatData = chatData[m.sender] || {};
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
@@ -554,30 +565,12 @@ export async function handler(m, conn, store) {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
                         
-                        const faqsList = Object.values(currentConfigData.faqs || {});
-                        const sections = [{
-                            title: '⭐ Nuestros Servicios',
-                            rows: faqsList.map((faq) => ({
-                                title: faq.pregunta,
-                                rowId: `${faq.pregunta}`,
-                                description: `Toca para saber más sobre: ${faq.pregunta}`
-                            }))
-                        }];
-
-                        const listMessage = {
-                            text: `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`,
-                            footer: 'Toca el botón para ver nuestros servicios.',
-                            title: '📚 *Bienvenido/a*',
-                            buttonText: 'Ver Servicios',
-                            sections
-                        };
-                        await conn.sendMessage(m.chat, listMessage, { quoted: m });
+                        await sendWelcomeMessage(m, conn, userChatData);
                         
                         return;
                     }
                 }
             } else if (chatState === 'active') {
-                const userChatData = chatData[m.sender] || {};
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
