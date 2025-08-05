@@ -566,11 +566,20 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
+                        const sender = m.sender;
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
-                        chatData[formattedSender] = userChatData;
+                        
+                        chatData[sender] = userChatData;
                         saveChatData(chatData);
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState a active:", err);
+
+                        await new Promise((resolve, reject) => {
+                            global.db.data.users.update({ id: sender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, { upsert: true }, (err) => {
+                                if (err) {
+                                    console.error("Error al actualizar chatState a 'active':", err);
+                                    return reject(err);
+                                }
+                                resolve();
+                            });
                         });
                         
                         const faqsList = Object.values(currentConfigData.faqs || {});
