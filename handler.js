@@ -630,10 +630,7 @@ export async function handler(m, conn, store) {
                 const clientInfo = paymentsData[formattedSender];
                 
                 const paymentInfoKeywords = ['día de pago', 'dia de pago', 'fecha de pago', 'cuando pago', 'cuando me toca pagar', 'monto', 'cuanto debo', 'cuanto pagar', 'pais', 'país'];
-                const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
-                
                 const isPaymentInfoIntent = paymentInfoKeywords.some(keyword => messageTextLower.includes(keyword));
-                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 
                 if (isPaymentInfoIntent) {
                     if (clientInfo) {
@@ -665,10 +662,12 @@ export async function handler(m, conn, store) {
                         return;
                     }
                 }
-                
-                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
+
+                const paymentKeywords = ['realizar un pago', 'quiero pagar', 'comprobante', 'pagar', 'pago'];
+                const isPaymentIntent = paymentKeywords.some(keyword => messageTextLower.includes(keyword));
                 if (isPaymentIntent) {
-                    await sendPaymentOptions(m, conn);
+                    const paymentMessage = `¡Claro! Para procesar tu pago, por favor envía la foto o documento del comprobante junto con el texto:\n\n*"Aquí está mi comprobante de pago"* 📸`;
+                    await m.reply(paymentMessage);
                     return;
                 }
                 
