@@ -147,7 +147,7 @@ const handleGoodbye = async (m, conn, userId) => {
 
 const sendWelcomeMessage = async (m, conn, userChatData) => {
     const currentConfigData = loadConfigBot();
-    let welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+    let welcomeMessage = `¡Hola ${userChatData.nombre || 'cliente'}! ¿En qué puedo ayudarte hoy?`;
     const faqsList = Object.values(currentConfigData.faqs || {});
     const sections = [{
         title: '⭐ Nuestros Servicios',
@@ -234,6 +234,11 @@ export async function handler(m, conn, store) {
             });
         }
         lastResetTime = Date.now();
+    }
+    
+    if (!m || !m.sender) {
+        console.error('Mensaje o remitente nulo, ignorando el mensaje.');
+        return;
     }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
@@ -523,11 +528,7 @@ export async function handler(m, conn, store) {
             });
             const userChatData = chatData[m.sender] || {};
             let chatState = user?.chatState || 'initial';
-
-            if (userChatData.nombre && chatState === 'initial') {
-                chatState = 'active';
-            }
-
+            
             const messageTextLower = m.text.toLowerCase().trim();
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
@@ -535,12 +536,16 @@ export async function handler(m, conn, store) {
             }
 
             if (chatState === 'initial') {
-                const welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
-                await m.reply(welcomeMessage);
-                
-                global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-                    if (err) console.error("Error al actualizar chatState a awaitingName:", err);
-                });
+                if (userChatData.nombre) {
+                    await sendWelcomeMessage(m, conn, userChatData);
+                } else {
+                    const welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+                    await m.reply(welcomeMessage);
+                    
+                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+                        if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+                    });
+                }
                 return;
             } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
@@ -561,12 +566,7 @@ export async function handler(m, conn, store) {
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
                         
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState a active:", err);
-                        });
-                        
                         await sendWelcomeMessage(m, conn, userChatData);
-                        
                         return;
                     }
                 }
