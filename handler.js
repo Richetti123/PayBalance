@@ -146,12 +146,14 @@ const handleGoodbye = async (m, conn, userId) => {
 };
 
 const sendWelcomeMessage = async (m, conn) => {
+    console.log(chalk.yellow('[DEBUG] Entrando a sendWelcomeMessage.'));
     const currentConfigData = loadConfigBot();
     const chatData = loadChatData();
     const userChatData = chatData[m.sender] || {};
     let welcomeMessage = '';
 
     if (!userChatData.nombre) {
+        console.log(chalk.yellow('[DEBUG] El usuario no tiene nombre registrado. Solicitando nombre.'));
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
@@ -160,6 +162,7 @@ const sendWelcomeMessage = async (m, conn) => {
         });
         
     } else {
+        console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${userChatData.nombre}. Enviando menú de servicios.`));
         welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
         const faqsList = Object.values(currentConfigData.faqs || {});
         const sections = [{
@@ -217,44 +220,43 @@ export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
 
-    if (!hasResetOnStartup) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        hasResetOnStartup = true;
-        lastResetTime = Date.now();
-    } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
-        const allUsers = await new Promise((resolve, reject) => {
-            global.db.data.users.find({}, (err, docs) => {
-                if (err) return reject(err);
-                resolve(docs);
-            });
-        });
-        if (allUsers.length > 0) {
-            await new Promise((resolve, reject) => {
-                global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
-        }
-        lastResetTime = Date.now();
-    }
+    // --- COMENTADO: Bloque de reinicio que podría estar causando el problema ---
+    // if (!hasResetOnStartup) {
+    //     const allUsers = await new Promise((resolve, reject) => {
+    //         global.db.data.users.find({}, (err, docs) => {
+    //             if (err) return reject(err);
+    //             resolve(docs);
+    //         });
+    //     });
+    //     if (allUsers.length > 0) {
+    //         await new Promise((resolve, reject) => {
+    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+    //                 if (err) return reject(err);
+    //                 resolve();
+    //             });
+    //         });
+    //     }
+    //     hasResetOnStartup = true;
+    //     lastResetTime = Date.now();
+    // } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
+    //     const allUsers = await new Promise((resolve, reject) => {
+    //         global.db.data.users.find({}, (err, docs) => {
+    //             if (err) return reject(err);
+    //             resolve(docs);
+    //         });
+    //     });
+    //     if (allUsers.length > 0) {
+    //         await new Promise((resolve, reject) => {
+    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+    //                 if (err) return reject(err);
+    //                 resolve();
+    //             });
+    //         });
+    //     }
+    //     lastResetTime = Date.now();
+    // }
     
-       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
-    
     const botJid = conn?.user?.id || conn?.user?.jid || '';
     const botRaw = botJid?.split('@')[0] || 'Desconocido';
     const botNumber = botRaw.split(':')[0];
@@ -263,9 +265,7 @@ export async function handler(m, conn, store) {
     const senderJid = m.key?.fromMe ? botJid : m.key?.participant || m.key?.remoteJid || m.sender || '';
     const senderRaw = senderJid.split('@')[0] || 'Desconocido';
     const senderNumber = '+' + senderRaw.split(':')[0];
-
     const senderName = m.pushName || 'Desconocido';
-
     let chatName = 'Chat Privado';
     if (isGroup) {
         try {
@@ -274,9 +274,7 @@ export async function handler(m, conn, store) {
             chatName = 'Grupo Desconocido';
         }
     }
-    
     const groupLine = isGroup ? `Grupo: ${chatName}` : `Chat: Chat Privado`;
-
     const rawText =
         m.text ||
         m.message?.conversation ||
@@ -308,19 +306,14 @@ export async function handler(m, conn, store) {
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
         
-        // ******************** LÓGICA DE TEMPORIZADOR AÑADIDA ********************
-        // Solo aplica en chats privados
         if (!m.isGroup) {
-            // Limpia el temporizador anterior si existe
             if (inactivityTimers[m.sender]) {
                 clearTimeout(inactivityTimers[m.sender]);
             }
-            // Establece un nuevo temporizador
             inactivityTimers[m.sender] = setTimeout(() => {
                 handleInactivity(m, conn, m.sender);
             }, INACTIVITY_TIMEOUT_MS);
         }
-        // ******************** FIN LÓGICA DE TEMPORIZADOR ********************
 
         if (m.message) {
             let buttonReplyHandled = false;
@@ -337,6 +330,7 @@ export async function handler(m, conn, store) {
             }
 
             if (buttonReplyHandled) {
+                console.log(chalk.blue(`[DEBUG] Mensaje con botón o lista. ID seleccionado: ${m.text}`));
                 if (m.text === '1' || m.text.toLowerCase() === 'he realizado el pago') {
                     await conn.sendMessage(m.chat, {
                         text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
@@ -346,6 +340,7 @@ export async function handler(m, conn, store) {
                 }
                 
                 if (m.text === '.reactivate_chat') {
+                    console.log(chalk.blue('[DEBUG] Reactivando chat.'));
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
@@ -360,9 +355,9 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
+            console.log(chalk.green('[DEBUG] Comprobante de pago detectado.'));
             const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
             let clientInfo = null;
-
             try {
                 if (fs.existsSync(paymentsFilePath)) {
                     const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -372,7 +367,6 @@ export async function handler(m, conn, store) {
             } catch (e) {
                 console.error("Error al leer pagos.json en handler.js:", e);
             }
-            
             const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
             if (handledMedia) {
                 return;
@@ -385,6 +379,7 @@ export async function handler(m, conn, store) {
         }
 
         if (m.isCmd) {
+            console.log(chalk.magenta(`[DEBUG] Comando detectado: ${m.command}`));
             if (m.isGroup) {
                 const commandText = m.text.slice(m.text.startsWith(m.prefix) ? m.prefix.length + m.command.length : m.command.length).trim();
                 switch (m.command) {
@@ -415,7 +410,6 @@ export async function handler(m, conn, store) {
                                 const client = clientsData[num];
                                 const estadoPago = client.pagoRealizado ? '✅ Pagado este mes' : '❌ Pendiente de pago';
                                 const pagoActual = client.pagos && client.pagos[0] ? client.pagos[0] : { monto: 'N/A' };
-                                
                                 clientList += `*👤 Nombre:* ${client.nombre}\n*📞 Número:* ${num}\n*🗓️ Día de Pago:* ${client.diaPago}\n*💰 Monto:* ${pagoActual.monto}\n*🌎 Bandera:* ${client.bandera}\n*• Estado de Suspensión:* ${client.suspendido ? '🔴 Suspendido' : '🟢 Activo'}\n*• Estado de Pago:* ${estadoPago}\n----------------------------\n`;
                             }
                             if (Object.keys(clientsData).length === 0) clientList = '❌ No hay clientes registrados.';
@@ -517,6 +511,7 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
+            console.log(chalk.cyan('[DEBUG] Mensaje en chat privado.'));
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
@@ -526,6 +521,7 @@ export async function handler(m, conn, store) {
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
+                        console.error(chalk.red("Error al buscar usuario en DB:", err));
                         return resolve(null);
                     }
                     resolve(doc);
@@ -533,14 +529,18 @@ export async function handler(m, conn, store) {
             });
 
             const chatState = user?.chatState || 'initial';
+            console.log(chalk.cyan(`[DEBUG] Estado de chat del usuario: ${chatState}`));
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
             }
+            
             if (chatState === 'initial') {
+                console.log(chalk.cyan('[DEBUG] Estado es "initial". Llamando a sendWelcomeMessage.'));
                 await sendWelcomeMessage(m, conn);
                 return;
             } else if (chatState === 'awaitingName') {
+                console.log(chalk.cyan('[DEBUG] Estado es "awaitingName". Procesando la respuesta del nombre.'));
                 if (messageTextLower.length > 0) {
                     let name = '';
                     const soyMatch = messageTextLower.match(/^(?:soy|me llamo)\s+(.*?)(?:\s+y|\s+quiero|$)/);
@@ -548,16 +548,21 @@ export async function handler(m, conn, store) {
 
                     if (soyMatch && soyMatch[1]) {
                         name = soyMatch[1].trim();
+                        console.log(chalk.blue(`[DEBUG] Nombre detectado por regex 'soy': ${name}`));
                     } else if (nombreEsMatch && nombreEsMatch[1]) {
                         name = nombreEsMatch[1].trim();
+                        console.log(chalk.blue(`[DEBUG] Nombre detectado por regex 'mi nombre es': ${name}`));
                     } else {
+                        // Corrección: Asumir que el mensaje completo es el nombre si no coincide con las regex
                         name = messageTextLower.trim();
+                        console.log(chalk.blue(`[DEBUG] Asumiendo que el nombre es el mensaje completo: ${name}`));
                     }
 
                     if (name) {
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
+                        console.log(chalk.green(`[DEBUG] Nombre guardado: ${userChatData.nombre}. Actualizando chatState a 'active'.`));
                         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
@@ -582,9 +587,13 @@ export async function handler(m, conn, store) {
                         await conn.sendMessage(m.chat, listMessage, { quoted: m });
                         
                         return;
+                    } else {
+                        console.log(chalk.yellow('[DEBUG] No se pudo extraer un nombre válido. Repitiendo el mensaje de solicitud de nombre.'));
+                        await m.reply("Lo siento, no pude entender tu nombre. Por favor, ¿podrías indicarme tu nombre?");
                     }
                 }
             } else if (chatState === 'active') {
+                console.log(chalk.cyan('[DEBUG] Estado es "active". Manejando conversación normal.'));
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -655,7 +664,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
                     await sendPaymentOptions(m, conn);
                     return;
