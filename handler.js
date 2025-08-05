@@ -238,8 +238,8 @@ const sendPaymentOptions = async (m, conn) => {
 export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
-    
-    // Eliminamos el reseteo global del estado del chat
+
+    // Eliminamos el reseteo global del estado del chat para evitar que se pierda el nombre del usuario
     // if (!hasResetOnStartup) {
     //     const allUsers = await new Promise((resolve, reject) => {
     //         global.db.data.users.find({}, (err, docs) => {
@@ -576,7 +576,6 @@ export async function handler(m, conn, store) {
                 const userChatData = chatData[formattedSender] || {};
                 
                 if (userChatData.nombre) {
-                    // Si el nombre ya está guardado, pasamos al estado 'active' directamente y enviamos el mensaje de bienvenida
                     await new Promise((resolve, reject) => {
                         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, { upsert: true }, (err) => {
                             if (err) {
@@ -607,7 +606,6 @@ export async function handler(m, conn, store) {
                     
                     return;
                 } else {
-                    // Si el nombre no está, pedimos el nombre
                     await sendWelcomeMessage(m, conn);
                     return;
                 }
@@ -626,14 +624,16 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
-                        const sender = m.sender;
+                        // Se corrige el bug: se utiliza formattedSender para guardar,
+                        // para que coincida con la clave utilizada al cargar.
+                        const formattedSenderForSave = normalizarNumero(`+${m.sender.split('@')[0]}`);
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         
-                        chatData[sender] = userChatData;
+                        chatData[formattedSenderForSave] = userChatData;
                         saveChatData(chatData);
 
                         await new Promise((resolve, reject) => {
-                            global.db.data.users.update({ id: sender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, { upsert: true }, (err) => {
+                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active', nombre: userChatData.nombre } }, { upsert: true }, (err) => {
                                 if (err) {
                                     return reject(err);
                                 }
@@ -758,7 +758,7 @@ export async function handler(m, conn, store) {
                         '🇦🇷': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`
                     };
                     const methodsList = Object.values(paymentMethods).join('\n\n');
-                    const formattedSender = `+${m.sender.split('@')[0]}`;
+                    const formattedSender = normalizarNumero(`+${m.sender.split('@')[0]}`);
                     const clientInfoPrompt = !!paymentsData[formattedSender] ?
                         `El usuario es un cliente existente con los siguientes detalles: Nombre: ${paymentsData[formattedSender].nombre}, Día de pago: ${paymentsData[formattedSender].diaPago}, Monto: ${paymentsData[formattedSender].monto}, Bandera: ${paymentsData[formattedSender].bandera}. Su estado es ${paymentsData[formattedSender].suspendido ? 'suspendido' : 'activo'}.` :
                         `El usuario no es un cliente existente. Es un cliente potencial.`;
