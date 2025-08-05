@@ -6,7 +6,7 @@ import path from 'path';
 import fs, { watchFile, unwatchFile } from 'fs';
 import chalk from 'chalk';
 import fetch from 'node-fetch';
-import { handlePaymentProofButton, manejarRespuestaPago } from './lib/respuestapagos.js';
+import { handlePaymentProofButton, manejarRespuetaPago } from './lib/respuestapagos.js';
 import { handleIncomingMedia } from './lib/comprobantes.js';
 import { isPaymentProof } from './lib/keywords.js';
 import { handler as clienteHandler } from './plugins/cliente.js';
@@ -85,17 +85,17 @@ const saveChatData = (data) => {
 };
 
 const countryPaymentMethods = {
-    'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
-    'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
-    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
-    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
-    'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
+    'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+    'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+    'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
     'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`,
     'bolivia': ``,
     'españa': ``,
     'italia': ``,
-    'paypal': `\n\nPara pagar desde cualquier parte del mundo, usa paypal:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
-    'estados unidos': `\n\nPara pagar en Estados Unidos, usa:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123\n\nSi vas a realizar el pago dime "Ahora realizare el pago" para seguir con la atención`,
+    'paypal': `\n\nPara pagar desde cualquier parte del mundo, usa paypal:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123`,
+    'estados unidos': `\n\nPara pagar en Estados Unidos, usa:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123`,
     'puerto rico': ``,
     'panamá': ``,
     'uruguay': ``,
@@ -147,7 +147,7 @@ const handleGoodbye = async (m, conn, userId) => {
 
 const sendWelcomeMessage = async (m, conn, userChatData) => {
     const currentConfigData = loadConfigBot();
-    let welcomeMessage = `¡Hola ${userChatData.nombre}! ¿En qué puedo ayudarte hoy?`;
+    let welcomeMessage = `¡Hola ${userChatData.nombre || 'cliente'}! ¿En qué puedo ayudarte hoy?`;
     const faqsList = Object.values(currentConfigData.faqs || {});
     const sections = [{
         title: '⭐ Nuestros Servicios',
@@ -234,6 +234,11 @@ export async function handler(m, conn, store) {
             });
         }
         lastResetTime = Date.now();
+    }
+    
+    if (!m || !m.sender) {
+        console.error('Mensaje o remitente nulo, ignorando el mensaje.');
+        return;
     }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
@@ -523,11 +528,7 @@ export async function handler(m, conn, store) {
             });
             const userChatData = chatData[m.sender] || {};
             let chatState = user?.chatState || 'initial';
-
-            if (userChatData.nombre && chatState === 'initial') {
-                chatState = 'active';
-            }
-
+            
             const messageTextLower = m.text.toLowerCase().trim();
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
@@ -535,13 +536,19 @@ export async function handler(m, conn, store) {
             }
 
             if (chatState === 'initial') {
-                const welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
-                await m.reply(welcomeMessage);
-                
-                global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-                    if (err) console.error("Error al actualizar chatState a awaitingName:", err);
-                });
-                return;
+                if (userChatData.nombre) {
+                    await sendWelcomeMessage(m, conn, userChatData);
+                    // No es necesario actualizar el estado aquí, la función sendWelcomeMessage ya lo hace.
+                    return;
+                } else {
+                    const welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+                    await m.reply(welcomeMessage);
+                    
+                    global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+                        if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+                    });
+                    return;
+                }
             } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
                     let name = '';
@@ -561,12 +568,8 @@ export async function handler(m, conn, store) {
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
                         
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState a active:", err);
-                        });
-                        
                         await sendWelcomeMessage(m, conn, userChatData);
-                        
+                        // sendWelcomeMessage ya cambia el chatState a 'active'
                         return;
                     }
                 }
