@@ -127,9 +127,17 @@ const handleInactivity = async (m, conn, userId) => {
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
 
-        global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a initial:", err);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a initial:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
+        
+        console.log(chalk.green(`[SUCCESS] chatState de ${userId} actualizado a 'initial' por inactividad.`));
         delete inactivityTimers[userId];
         
     } catch (e) {
@@ -157,9 +165,16 @@ const sendWelcomeMessage = async (m, conn) => {
         welcomeMessage = "¡Hola! soy PayBalance, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
         await m.reply(welcomeMessage);
         
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a awaitingName:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
+        console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingName' correctamente.`));
         
     } else {
         console.log(chalk.yellow(`[DEBUG] Usuario con nombre registrado: ${userChatData.nombre}. Enviando menú de servicios.`));
@@ -183,9 +198,16 @@ const sendWelcomeMessage = async (m, conn) => {
         };
         await conn.sendMessage(m.chat, listMessage, { quoted: m });
         
-        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-            if (err) console.error("Error al actualizar chatState a active:", err);
+        await new Promise((resolve, reject) => {
+            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+                if (err) {
+                    console.error("Error al actualizar chatState a active:", err);
+                    return reject(err);
+                }
+                resolve();
+            });
         });
+        console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'active' correctamente.`));
     }
 };
 
@@ -214,6 +236,7 @@ const sendPaymentOptions = async (m, conn) => {
             resolve();
         });
     });
+    console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingPaymentResponse' correctamente.`));
 };
 
 export async function handler(m, conn, store) {
@@ -335,7 +358,17 @@ export async function handler(m, conn, store) {
                     await conn.sendMessage(m.chat, {
                         text: `✅ *Si ya ha realizado su pago, por favor enviar foto o documento de su pago con el siguiente texto:*\n\n*"Aquí está mi comprobante de pago"* 📸`
                     });
-                    if (m.sender) await global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {});
+                    
+                    await new Promise((resolve, reject) => {
+                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
+                            if (err) {
+                                console.error("Error al actualizar chatState a 'awaitingPaymentProof':", err);
+                                return reject(err);
+                            }
+                            resolve();
+                        });
+                    });
+                    console.log(chalk.green(`[SUCCESS] chatState de ${m.sender} actualizado a 'awaitingPaymentProof' correctamente.`));
                     return;
                 }
                 
@@ -562,10 +595,17 @@ export async function handler(m, conn, store) {
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
-                        console.log(chalk.green(`[DEBUG] Nombre guardado: ${userChatData.nombre}. Actualizando chatState a 'active'.`));
-                        global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
-                            if (err) console.error("Error al actualizar chatState a active:", err);
+                        
+                        await new Promise((resolve, reject) => {
+                            global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
+                                if (err) {
+                                    console.error("Error al actualizar chatState a active:", err);
+                                    return reject(err);
+                                }
+                                resolve();
+                            });
                         });
+                        console.log(chalk.green(`[SUCCESS] Nombre guardado: ${userChatData.nombre}. Actualizando chatState a 'active'.`));
                         
                         const faqsList = Object.values(currentConfigData.faqs || {});
                         const sections = [{
