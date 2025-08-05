@@ -139,7 +139,6 @@ const handleInactivity = async (m, conn, userId) => {
         await new Promise((resolve, reject) => {
             global.db.data.users.update({ id: userId }, { $set: { chatState: 'initial' } }, {}, (err) => {
                 if (err) {
-                    console.error("Error al actualizar chatState a initial:", err);
                     return reject(err);
                 }
                 resolve();
@@ -174,7 +173,6 @@ const sendWelcomeMessage = async (m, conn) => {
         await new Promise((resolve, reject) => {
             global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, { upsert: true }, (err) => {
                 if (err) {
-                    console.error("Error al actualizar chatState a awaitingName:", err);
                     return reject(err);
                 }
                 resolve();
@@ -205,7 +203,6 @@ const sendWelcomeMessage = async (m, conn) => {
         await new Promise((resolve, reject) => {
             global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                 if (err) {
-                    console.error("Error al actualizar chatState a active:", err);
                     return reject(err);
                 }
                 resolve();
@@ -231,7 +228,6 @@ const sendPaymentOptions = async (m, conn) => {
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
-                console.error("Error al actualizar chatState a 'awaitingPaymentResponse':", err);
                 return reject(err);
             }
             resolve();
@@ -365,7 +361,6 @@ export async function handler(m, conn, store) {
                         await new Promise((resolve, reject) => {
                             global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentProof' } }, {}, (err) => {
                                 if (err) {
-                                    console.error("Error al actualizar chatState a 'awaitingPaymentProof':", err);
                                     return reject(err);
                                 }
                                 resolve();
@@ -385,6 +380,13 @@ export async function handler(m, conn, store) {
                 }
             }
         }
+        
+        // --- Nuevo bloque de código para responder a fotos ---
+        if (m.message?.imageMessage && !m.text) {
+            await m.reply("Si estas intentando mandar un comprobante de pago por favor envialo junto con el texto \"Aquí esta mi comprobante de pago\"");
+            return;
+        }
+        // --- Fin del nuevo bloque ---
 
         const esImagenConComprobante = m.message?.imageMessage?.caption && isPaymentProof(m.message.imageMessage.caption);
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
