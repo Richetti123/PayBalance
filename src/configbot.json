@@ -1,6 +1,6 @@
 {
   "modoPagoActivo": false,
-  "mensajeBienvenida": "¡Hola {user}! Soy CashFlow un asistente virtual. ¿En qué puedo ayudarte hoy?",
+  "mensajeBienvenida": "¡Hola {user}! Soy PayBalance un asistente virtual. ¿En qué puedo ayudarte hoy?",
   "mensajeDespedida": "¡Hasta pronto! Esperamos verte de nuevo.",
   "faqs": {
     "michi_bot_mensual": {
