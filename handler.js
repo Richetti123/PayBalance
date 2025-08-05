@@ -85,17 +85,17 @@ const saveChatData = (data) => {
 };
 
 const countryPaymentMethods = {
-    'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi\n\nSi quieres realizar el pago hazmelo saber`,
-    'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498\n\nSi quieres realizar el pago hazmelo saber`,
-    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi\n\nSi quieres realizar el pago hazmelo saber`,
-    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498\n\nSi quieres realizar el pago hazmelo saber`,
-    'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com\n\nSi quieres realizar el pago hazmelo saber`,
-    'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736\n\nSi quieres realizar el pago hazmelo saber`,
+    'méxico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+    'perú': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+    'mexico': `\n\nPara pagar en México, usa:\nCLABE: 706969168872764411\nNombre: Gaston Juarez\nBanco: Arcus Fi`,
+    'peru': `\n\nPara pagar en Perú, usa:\nNombre: Marcelo Gonzales R.\nYape: 967699188\nPlin: 955095498`,
+    'chile': `\n\nPara pagar en Chile, usa:\nNombre: BARINIA VALESKA ZENTENO MERINO\nRUT: 17053067-5\nBANCO ELEGIR: TEMPO\nTipo de cuenta: Cuenta Vista\nNumero de cuenta: 111117053067\nCorreo: estraxer2002@gmail.com`,
+    'argentina': `\n\nPara pagar en Argentina, usa:\nNombre: Gaston Juarez\nCBU: 4530000800011127480736`,
     'bolivia': ``,
     'españa': ``,
     'italia': ``,
-    'paypal': `\n\nPara pagar desde cualquier parte del mundo, usa paypal:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123\n\nSi quieres realizar el pago hazmelo saber`,
-    'estados unidos': `\n\nPara pagar en Estados Unidos, usa:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123\n\nSi quieres realizar el pago hazmelo saber`,
+    'paypal': `\n\nPara pagar desde cualquier parte del mundo, usa paypal:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123`,
+    'estados unidos': `\n\nPara pagar en Estados Unidos, usa:\nNombre: Marcelo Gonzales R.\nCorreo: jairg6218@gmail.com\nEnlace: https://paypal.me/richetti123`,
     'puerto rico': ``,
     'panamá': ``,
     'uruguay': ``,
@@ -145,10 +145,8 @@ const handleGoodbye = async (m, conn, userId) => {
     }
 };
 
-const sendWelcomeMessage = async (m, conn) => {
+const sendWelcomeMessage = async (m, conn, userChatData) => {
     const currentConfigData = loadConfigBot();
-    const chatData = loadChatData();
-    const userChatData = chatData[m.sender] || {};
     let welcomeMessage = '';
 
     if (!userChatData.nombre) {
@@ -186,7 +184,6 @@ const sendWelcomeMessage = async (m, conn) => {
     }
 };
 
-// Nueva función para enviar las opciones de pago y actualizar el estado
 const sendPaymentOptions = async (m, conn) => {
     const paymentMessage = 'Selecciona la opción que deseas:';
     const buttons = [
@@ -201,7 +198,6 @@ const sendPaymentOptions = async (m, conn) => {
 
     await conn.sendMessage(m.chat, buttonMessage, { quoted: m });
 
-    // Actualiza el chatState del usuario
     await new Promise((resolve, reject) => {
         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingPaymentResponse' } }, {}, (err) => {
             if (err) {
@@ -252,7 +248,6 @@ export async function handler(m, conn, store) {
         lastResetTime = Date.now();
     }
     
-       // CORRECCIÓN: Usar m.key.remoteJid para una detección de grupo confiable
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
     const botJid = conn?.user?.id || conn?.user?.jid || '';
@@ -308,19 +303,14 @@ export async function handler(m, conn, store) {
         m.isOwner = m.isGroup ? m.key.participant === ownerJid : m.sender === ownerJid;
         m.prefix = '.';
         
-        // ******************** LÓGICA DE TEMPORIZADOR AÑADIDA ********************
-        // Solo aplica en chats privados
         if (!m.isGroup) {
-            // Limpia el temporizador anterior si existe
             if (inactivityTimers[m.sender]) {
                 clearTimeout(inactivityTimers[m.sender]);
             }
-            // Establece un nuevo temporizador
             inactivityTimers[m.sender] = setTimeout(() => {
                 handleInactivity(m, conn, m.sender);
             }, INACTIVITY_TIMEOUT_MS);
         }
-        // ******************** FIN LÓGICA DE TEMPORIZADOR ********************
 
         if (m.message) {
             let buttonReplyHandled = false;
@@ -520,9 +510,6 @@ export async function handler(m, conn, store) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
-            const userChatData = chatData[m.sender] || {};
-            const messageTextLower = m.text.toLowerCase().trim();
-
             const user = await new Promise((resolve, reject) => {
                 global.db.data.users.findOne({ id: m.sender }, (err, doc) => {
                     if (err) {
@@ -533,12 +520,19 @@ export async function handler(m, conn, store) {
             });
 
             const chatState = user?.chatState || 'initial';
+            const messageTextLower = m.text.toLowerCase().trim();
             
             if (isPaymentProof(messageTextLower) && (m.message?.imageMessage || m.message?.documentMessage)) {
                 return;
             }
+
             if (chatState === 'initial') {
-                await sendWelcomeMessage(m, conn);
+                const welcomeMessage = "¡Hola! soy CashFlow, un asistente virtual y estoy aqui para atenderte. Por favor indicame tu nombre para brindarte los servicios disponibles.";
+                await m.reply(welcomeMessage);
+                
+                global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'awaitingName' } }, {}, (err) => {
+                    if (err) console.error("Error al actualizar chatState a awaitingName:", err);
+                });
                 return;
             } else if (chatState === 'awaitingName') {
                 if (messageTextLower.length > 0) {
@@ -555,9 +549,11 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
+                        const userChatData = chatData[m.sender] || {};
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         chatData[m.sender] = userChatData;
                         saveChatData(chatData);
+                        
                         global.db.data.users.update({ id: m.sender }, { $set: { chatState: 'active' } }, {}, (err) => {
                             if (err) console.error("Error al actualizar chatState a active:", err);
                         });
@@ -585,6 +581,7 @@ export async function handler(m, conn, store) {
                     }
                 }
             } else if (chatState === 'active') {
+                const userChatData = chatData[m.sender] || {};
                 const goodbyeKeywords = ['adios', 'chao', 'chau', 'bye', 'nos vemos', 'hasta luego', 'me despido'];
                 const isGoodbye = goodbyeKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -655,7 +652,6 @@ export async function handler(m, conn, store) {
                     }
                 }
                 
-                // *** SECCIÓN MODIFICADA: Ahora llama a la función para enviar botones y cambia el estado
                 if (isPaymentIntent) {
                     await sendPaymentOptions(m, conn);
                     return;
@@ -668,7 +664,6 @@ export async function handler(m, conn, store) {
                     await notificarOwnerHandler(m, { conn });
                     return;
                 }
-
                 
                 try {
                     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
