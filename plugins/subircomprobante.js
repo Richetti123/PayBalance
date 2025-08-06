@@ -34,9 +34,9 @@ const savePayments = (data) => {
  */
 export async function processPaymentProofAndSave(conn, messageContent, clientKey, clientInfo, isImage) {
     console.log('--- Inicia processPaymentProofAndSave ---');
-    console.log('messageContent:', messageContent ? Object.keys(messageContent) : 'null');
+    console.log('messageContent (pasado a la función):', messageContent ? Object.keys(messageContent) : 'null');
     console.log('clientKey:', clientKey);
-    console.log('isImage (passed to function):', isImage);
+    console.log('isImage (pasado a la función):', isImage);
 
     try {
         const paymentsData = loadPayments();
@@ -45,14 +45,14 @@ export async function processPaymentProofAndSave(conn, messageContent, clientKey
         const messageType = isImage ? 'imageMessage' : 'documentMessage';
         const msgTypeForDownload = messageType.replace('Message', '');
         
-        console.log('Attempting to download media. Type:', msgTypeForDownload);
+        console.log('Intentando descargar media. Tipo:', msgTypeForDownload);
         const stream = await downloadContentFromMessage(messageContent, msgTypeForDownload);
         const bufferArray = [];
         for await (const chunk of stream) {
             bufferArray.push(chunk);
         }
         const mediaBuffer = Buffer.concat(bufferArray);
-        console.log('Media buffer size:', mediaBuffer.length);
+        console.log('Tamaño del buffer de media:', mediaBuffer.length);
 
         if (!mediaBuffer || mediaBuffer.length === 0) {
             throw new Error('El archivo está vacío o falló la descarga.');
@@ -115,68 +115,87 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     console.log('m.isOwner:', m.isOwner);
     console.log('text (argumento del comando):', text);
 
-    // Log de los contenidos del mensaje 'm'
-    console.log('Contenido de m.message:', m.message ? Object.keys(m.message) : 'No m.message');
-    if (m.message?.imageMessage) console.log('m.message contiene imageMessage');
-    if (m.message?.documentMessage) console.log('m.message contiene documentMessage');
+    // Logs de los contenidos del mensaje 'm'
+    console.log('Contenido de m.message (keys):', m.message ? Object.keys(m.message) : 'No m.message');
+    if (m.message?.imageMessage) console.log('m.message.imageMessage (valor):', m.message.imageMessage ? 'Existe' : 'No existe');
+    if (m.message?.documentMessage) console.log('m.message.documentMessage (valor):', m.message.documentMessage ? 'Existe' : 'No existe');
+    if (m.message?.extendedTextMessage) console.log('m.message.extendedTextMessage (valor):', m.message.extendedTextMessage ? 'Existe' : 'No existe');
     if (m.text) console.log('m.text:', m.text);
 
-    // Log de los contenidos del mensaje 'm.quoted' (si existe)
+    // Logs de los contenidos del mensaje 'm.quoted' (si existe)
     console.log('Contenido de m.quoted:', m.quoted ? 'Existe' : 'No existe');
     if (m.quoted && m.quoted.message) {
-        console.log('Contenido de m.quoted.message:', Object.keys(m.quoted.message));
-        if (m.quoted.message?.imageMessage) console.log('m.quoted.message contiene imageMessage');
-        if (m.quoted.message?.documentMessage) console.log('m.quoted.message contiene documentMessage');
+        console.log('Contenido de m.quoted.message (keys):', Object.keys(m.quoted.message));
+        if (m.quoted.message?.imageMessage) console.log('m.quoted.message.imageMessage (valor):', m.quoted.message.imageMessage ? 'Existe' : 'No existe');
+        if (m.quoted.message?.documentMessage) console.log('m.quoted.message.documentMessage (valor):', m.quoted.message.documentMessage ? 'Existe' : 'No existe');
+        if (m.quoted.message?.extendedTextMessage) console.log('m.quoted.message.extendedTextMessage (valor):', m.quoted.message.extendedTextMessage ? 'Existe' : 'No existe');
+        if (m.quoted.text) console.log('m.quoted.text:', m.quoted.text);
     }
-    if (m.quoted && m.quoted.text) console.log('m.quoted.text:', m.quoted.text);
 
 
     if (!m.isOwner) {
         return m.reply('❌ Solo el propietario del bot puede usar este comando.');
     }
     
-    let messageContent = null; // Contendrá el objeto de mensaje real con la media
+    let messageContent = null; 
     let isImage = false;
     let isDocument = false;
+    let sourceMessageForMedia = null;
 
-    // PRUEBA DE LÓGICA DE DETECCIÓN MEJORADA
-    // 1. Priorizar el contenido si es una respuesta a un mensaje multimedia
+    // Estrategia de detección de media:
+    // 1. Intentar obtener el contenido del mensaje citado (si existe y es media)
     if (m.quoted?.message) {
-        if (m.quoted.message.imageMessage) {
-            messageContent = m.quoted.message.imageMessage;
+        sourceMessageForMedia = m.quoted.message;
+        console.log('DEBUG: Fuente de media: Mensaje citado (m.quoted.message)');
+    } 
+    // 2. Si no hay media en el citado, intentar obtener el contenido del mensaje actual (si es media)
+    else if (m.message) {
+        sourceMessageForMedia = m.message;
+        console.log('DEBUG: Fuente de media: Mensaje actual (m.message)');
+    }
+
+    if (sourceMessageForMedia) {
+        // Buscar la media directamente en la fuente
+        if (sourceMessageForMedia.imageMessage) {
+            messageContent = sourceMessageForMedia.imageMessage;
             isImage = true;
-            console.log('Detectado como respuesta a una imagen.');
-        } else if (m.quoted.message.documentMessage) {
-            messageContent = m.quoted.message.documentMessage;
+            console.log('DEBUG: Media encontrada directamente en la fuente: IMAGEN.');
+        } else if (sourceMessageForMedia.documentMessage) {
+            messageContent = sourceMessageForMedia.documentMessage;
             isDocument = true;
-            console.log('Detectado como respuesta a un documento.');
-        } else if (m.quoted.message.videoMessage) { // Si también quieres aceptar videos
-            messageContent = m.quoted.message.videoMessage;
-            isDocument = false; // O poner isVideo = true, pero para este comando nos interesa img/doc
-            console.log('Detectado como respuesta a un video (considerado como documento).');
+            console.log('DEBUG: Media encontrada directamente en la fuente: DOCUMENTO.');
+        } else if (sourceMessageForMedia.videoMessage) {
+            // Considerar videos como un tipo de documento para este comando
+            messageContent = sourceMessageForMedia.videoMessage;
+            isImage = false; 
+            isDocument = true; 
+            console.log('DEBUG: Media encontrada directamente en la fuente: VIDEO (tratado como documento).');
+        }
+        // Buscar media anidada en extendedTextMessage (común en respuestas con texto)
+        else if (sourceMessageForMedia.extendedTextMessage?.contextInfo?.quotedMessage) {
+            const nestedQuoted = sourceMessageForMedia.extendedTextMessage.contextInfo.quotedMessage;
+            console.log('DEBUG: Intentando buscar media anidada en extendedTextMessage.contextInfo.quotedMessage. Keys:', Object.keys(nestedQuoted));
+
+            if (nestedQuoted.imageMessage) {
+                messageContent = nestedQuoted.imageMessage;
+                isImage = true;
+                console.log('DEBUG: Media encontrada anidada: IMAGEN.');
+            } else if (nestedQuoted.documentMessage) {
+                messageContent = nestedQuoted.documentMessage;
+                isDocument = true;
+                console.log('DEBUG: Media encontrada anidada: DOCUMENTO.');
+            } else if (nestedQuoted.videoMessage) {
+                messageContent = nestedQuoted.videoMessage;
+                isImage = false;
+                isDocument = true;
+                console.log('DEBUG: Media encontrada anidada: VIDEO (tratado como documento).');
+            }
         }
     }
 
-    // 2. Si no es una respuesta a media, verificar si la media está adjunta directamente al mensaje actual (con o sin caption)
-    if (!messageContent) { // Solo si messageContent aún no se ha establecido
-        if (m.message?.imageMessage) {
-            messageContent = m.message.imageMessage;
-            isImage = true;
-            console.log('Detectado como imagen adjunta directamente.');
-        } else if (m.message?.documentMessage) {
-            messageContent = m.message.documentMessage;
-            isDocument = true;
-            console.log('Detectado como documento adjunto directamente.');
-        } else if (m.message?.videoMessage) { // Si también quieres aceptar videos
-            messageContent = m.message.videoMessage;
-            isDocument = false; // O poner isVideo = true
-            console.log('Detectado como video adjunto directamente (considerado como documento).');
-        }
-    }
-
-    console.log('messageContent (después de la detección):', messageContent ? Object.keys(messageContent) : 'null');
-    console.log('isImage (después de la detección):', isImage);
-    console.log('isDocument (después de la detección):', isDocument);
+    console.log('messageContent (después de la detección final):', messageContent ? Object.keys(messageContent) : 'null');
+    console.log('isImage (después de la detección final):', isImage);
+    console.log('isDocument (después de la detección final):', isDocument);
 
     if (!isImage && !isDocument) {
         console.log('Fallo la detección de imagen/documento. Saliendo con error de validación.');
@@ -194,13 +213,13 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
             // Buscar si el texto citado contiene el comando para extraer el nombre/número
             if (quotedText.startsWith(usedPrefix + command)) {
                 const args = quotedText.slice(usedPrefix.length).trim().split(/ +/).filter(v => v);
-                if (args.length > 1) { // Si hay algo después del comando
-                    clientNameOrNumber = args.slice(1).join(' '); // Obtener el resto como nombre/número
+                if (args.length > 1) { 
+                    clientNameOrNumber = args.slice(1).join(' ');
                     console.log('clientNameOrNumber extraído de quoted.text:', clientNameOrNumber);
                 }
             }
         }
-        if (!clientNameOrNumber) { // Si aún no hay nombre/número
+        if (!clientNameOrNumber) { 
             console.log('No se pudo determinar clientNameOrNumber. Saliendo con error de validación.');
             return m.reply(`❌ Debes especificar el nombre o número del cliente. Uso correcto: \`${usedPrefix + command} nombre_cliente\` o \`${usedPrefix + command} +521...\``);
         }
@@ -229,7 +248,6 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
         }
         
         const clientInfo = paymentsData[clientKey];
-        // messageContent ya está definido y contiene el objeto imageMessage/documentMessage
 
         console.log('Llamando a processPaymentProofAndSave con:', { clientKey, isImage, isDocument });
         const result = await processPaymentProofAndSave(conn, messageContent, clientKey, clientInfo, isImage);
