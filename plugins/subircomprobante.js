@@ -115,20 +115,24 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     console.log('m.isOwner:', m.isOwner);
     console.log('text (argumento del comando):', text);
 
-    // Logs de los contenidos del mensaje 'm'
-    console.log('Contenido de m.message (keys):', m.message ? Object.keys(m.message) : 'No m.message');
-    if (m.message?.imageMessage) console.log('m.message.imageMessage (valor):', m.message.imageMessage ? 'Existe' : 'No existe');
-    if (m.message?.documentMessage) console.log('m.message.documentMessage (valor):', m.message.documentMessage ? 'Existe' : 'No existe');
-    if (m.message?.extendedTextMessage) console.log('m.message.extendedTextMessage (valor):', m.message.extendedTextMessage ? 'Existe' : 'No existe');
+    // Logs de los contenidos del mensaje 'm' (mensaje actual)
+    console.log('m.message (keys):', m.message ? Object.keys(m.message) : 'No m.message');
+    if (m.message?.imageMessage) console.log('m.message.imageMessage EXISTE y es:', m.message.imageMessage ? 'Un Objeto' : 'null/undefined');
+    if (m.message?.documentMessage) console.log('m.message.documentMessage EXISTE y es:', m.message.documentMessage ? 'Un Objeto' : 'null/undefined');
+    if (m.message?.videoMessage) console.log('m.message.videoMessage EXISTE y es:', m.message.videoMessage ? 'Un Objeto' : 'null/undefined');
+    if (m.message?.buttonsMessage) console.log('m.message.buttonsMessage EXISTE y es:', m.message.buttonsMessage ? 'Un Objeto' : 'null/undefined');
+    if (m.message?.extendedTextMessage) console.log('m.message.extendedTextMessage EXISTE y es:', m.message.extendedTextMessage ? 'Un Objeto' : 'null/undefined');
     if (m.text) console.log('m.text:', m.text);
 
-    // Logs de los contenidos del mensaje 'm.quoted' (si existe)
-    console.log('Contenido de m.quoted:', m.quoted ? 'Existe' : 'No existe');
+    // Logs de los contenidos del mensaje 'm.quoted' (mensaje citado)
+    console.log('m.quoted:', m.quoted ? 'Existe' : 'No existe');
     if (m.quoted && m.quoted.message) {
-        console.log('Contenido de m.quoted.message (keys):', Object.keys(m.quoted.message));
-        if (m.quoted.message?.imageMessage) console.log('m.quoted.message.imageMessage (valor):', m.quoted.message.imageMessage ? 'Existe' : 'No existe');
-        if (m.quoted.message?.documentMessage) console.log('m.quoted.message.documentMessage (valor):', m.quoted.message.documentMessage ? 'Existe' : 'No existe');
-        if (m.quoted.message?.extendedTextMessage) console.log('m.quoted.message.extendedTextMessage (valor):', m.quoted.message.extendedTextMessage ? 'Existe' : 'No existe');
+        console.log('m.quoted.message (keys):', Object.keys(m.quoted.message));
+        if (m.quoted.message?.imageMessage) console.log('m.quoted.message.imageMessage EXISTE y es:', m.quoted.message.imageMessage ? 'Un Objeto' : 'null/undefined');
+        if (m.quoted.message?.documentMessage) console.log('m.quoted.message.documentMessage EXISTE y es:', m.quoted.message.documentMessage ? 'Un Objeto' : 'null/undefined');
+        if (m.quoted.message?.videoMessage) console.log('m.quoted.message.videoMessage EXISTE y es:', m.quoted.message.videoMessage ? 'Un Objeto' : 'null/undefined');
+        if (m.quoted.message?.buttonsMessage) console.log('m.quoted.message.buttonsMessage EXISTE y es:', m.quoted.message.buttonsMessage ? 'Un Objeto' : 'null/undefined');
+        if (m.quoted.message?.extendedTextMessage) console.log('m.quoted.message.extendedTextMessage EXISTE y es:', m.quoted.message.extendedTextMessage ? 'Un Objeto' : 'null/undefined');
         if (m.quoted.text) console.log('m.quoted.text:', m.quoted.text);
     }
 
@@ -140,58 +144,78 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     let messageContent = null; 
     let isImage = false;
     let isDocument = false;
-    let sourceMessageForMedia = null;
 
-    // Estrategia de detección de media:
-    // 1. Intentar obtener el contenido del mensaje citado (si existe y es media)
-    if (m.quoted?.message) {
-        sourceMessageForMedia = m.quoted.message;
-        console.log('DEBUG: Fuente de media: Mensaje citado (m.quoted.message)');
-    } 
-    // 2. Si no hay media en el citado, intentar obtener el contenido del mensaje actual (si es media)
-    else if (m.message) {
-        sourceMessageForMedia = m.message;
-        console.log('DEBUG: Fuente de media: Mensaje actual (m.message)');
-    }
+    // --- LÓGICA DE DETECCIÓN DE MEDIA MEJORADA ---
 
-    if (sourceMessageForMedia) {
-        // Buscar la media directamente en la fuente
-        if (sourceMessageForMedia.imageMessage) {
-            messageContent = sourceMessageForMedia.imageMessage;
-            isImage = true;
-            console.log('DEBUG: Media encontrada directamente en la fuente: IMAGEN.');
-        } else if (sourceMessageForMedia.documentMessage) {
-            messageContent = sourceMessageForMedia.documentMessage;
-            isDocument = true;
-            console.log('DEBUG: Media encontrada directamente en la fuente: DOCUMENTO.');
-        } else if (sourceMessageForMedia.videoMessage) {
-            // Considerar videos como un tipo de documento para este comando
-            messageContent = sourceMessageForMedia.videoMessage;
-            isImage = false; 
-            isDocument = true; 
-            console.log('DEBUG: Media encontrada directamente en la fuente: VIDEO (tratado como documento).');
+    // Función auxiliar para extraer media de un objeto de mensaje
+    const extractMediaFromMessageObject = (msgObj) => {
+        if (!msgObj) return { content: null, isImg: false, isDoc: false };
+
+        if (msgObj.imageMessage) {
+            console.log('DEBUG: -> Media detectada: imageMessage.');
+            return { content: msgObj.imageMessage, isImg: true, isDoc: false };
         }
-        // Buscar media anidada en extendedTextMessage (común en respuestas con texto)
-        else if (sourceMessageForMedia.extendedTextMessage?.contextInfo?.quotedMessage) {
-            const nestedQuoted = sourceMessageForMedia.extendedTextMessage.contextInfo.quotedMessage;
-            console.log('DEBUG: Intentando buscar media anidada en extendedTextMessage.contextInfo.quotedMessage. Keys:', Object.keys(nestedQuoted));
+        if (msgObj.documentMessage) {
+            console.log('DEBUG: -> Media detectada: documentMessage.');
+            return { content: msgObj.documentMessage, isImg: false, isDoc: true };
+        }
+        if (msgObj.videoMessage) {
+            console.log('DEBUG: -> Media detectada: videoMessage (tratado como documento).');
+            return { content: msgObj.videoMessage, isImg: false, isDoc: true };
+        }
+        return { content: null, isImg: false, isDoc: false };
+    };
 
-            if (nestedQuoted.imageMessage) {
-                messageContent = nestedQuoted.imageMessage;
-                isImage = true;
-                console.log('DEBUG: Media encontrada anidada: IMAGEN.');
-            } else if (nestedQuoted.documentMessage) {
-                messageContent = nestedQuoted.documentMessage;
-                isDocument = true;
-                console.log('DEBUG: Media encontrada anidada: DOCUMENTO.');
-            } else if (nestedQuoted.videoMessage) {
-                messageContent = nestedQuoted.videoMessage;
-                isImage = false;
-                isDocument = true;
-                console.log('DEBUG: Media encontrada anidada: VIDEO (tratado como documento).');
+    // Intentar obtener el contenido del mensaje citado (si existe)
+    if (m.quoted?.message) {
+        console.log('DEBUG: Buscando media en m.quoted.message.');
+        const quotedResult = extractMediaFromMessageObject(m.quoted.message);
+        if (quotedResult.content) {
+            messageContent = quotedResult.content;
+            isImage = quotedResult.isImg;
+            isDocument = quotedResult.isDoc;
+        } else if (m.quoted.message.extendedTextMessage?.contextInfo?.quotedMessage) {
+            // Caso: m.quoted es un extendedTextMessage que cita a una media (reply dentro de reply)
+            console.log('DEBUG: Buscando media en m.quoted.message.extendedTextMessage.contextInfo.quotedMessage.');
+            const nestedQuotedResult = extractMediaFromMessageObject(m.quoted.message.extendedTextMessage.contextInfo.quotedMessage);
+            if (nestedQuotedResult.content) {
+                messageContent = nestedQuotedResult.content;
+                isImage = nestedQuotedResult.isImg;
+                isDocument = nestedQuotedResult.isDoc;
+            }
+        } else if (m.quoted.message.buttonsMessage) {
+            // Caso: m.quoted es un buttonsMessage. Puede contener la media directamente o citarla.
+            console.log('DEBUG: Buscando media en m.quoted.message.buttonsMessage.');
+            const buttonsMsg = m.quoted.message.buttonsMessage;
+            const buttonsResult = extractMediaFromMessageObject(buttonsMsg);
+             if (buttonsResult.content) {
+                messageContent = buttonsResult.content;
+                isImage = buttonsResult.isImg;
+                isDocument = buttonsResult.isDoc;
+            } else if (buttonsMsg.contextInfo?.quotedMessage) {
+                console.log('DEBUG: Buscando media en m.quoted.message.buttonsMessage.contextInfo.quotedMessage.');
+                const nestedButtonsQuotedResult = extractMediaFromMessageObject(buttonsMsg.contextInfo.quotedMessage);
+                if (nestedButtonsQuotedResult.content) {
+                    messageContent = nestedButtonsQuotedResult.content;
+                    isImage = nestedButtonsQuotedResult.isImg;
+                    isDocument = nestedButtonsQuotedResult.isDoc;
+                }
             }
         }
     }
+
+    // Si aún no se encontró media en el mensaje citado, intentar en el mensaje actual (para adjuntos directos)
+    if (!messageContent && m.message) {
+        console.log('DEBUG: Buscando media en m.message (mensaje actual).');
+        const currentMessageResult = extractMediaFromMessageObject(m.message);
+        if (currentMessageResult.content) {
+            messageContent = currentMessageResult.content;
+            isImage = currentMessageResult.isImg;
+            isDocument = currentMessageResult.isDoc;
+        }
+    }
+
+    // --- FIN LÓGICA DE DETECCIÓN DE MEDIA MEJORADA ---
 
     console.log('messageContent (después de la detección final):', messageContent ? Object.keys(messageContent) : 'null');
     console.log('isImage (después de la detección final):', isImage);
