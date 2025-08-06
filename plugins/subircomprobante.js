@@ -115,14 +115,6 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     console.log('m.isOwner:', m.isOwner);
     console.log('text (argumento del comando):', text);
 
-    if (!m.isOwner) {
-        return m.reply('❌ Solo el propietario del bot puede usar este comando.');
-    }
-    
-    let messageContent = null;
-    let isImage = false;
-    let isDocument = false;
-
     // Log de los contenidos del mensaje 'm'
     console.log('Contenido de m.message:', m.message ? Object.keys(m.message) : 'No m.message');
     if (m.message?.imageMessage) console.log('m.message contiene imageMessage');
@@ -138,26 +130,47 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     }
     if (m.quoted && m.quoted.text) console.log('m.quoted.text:', m.quoted.text);
 
-    // Caso 1: Media adjunta directamente con el comando o sin texto (ej: imagen con caption ".subircomprobante nombre" o solo la imagen y luego el comando en otra línea)
-    if (m.message?.imageMessage && (m.text?.startsWith(usedPrefix + command) || m.text === '')) {
-        messageContent = m.message.imageMessage;
-        isImage = true;
-        console.log('Detectado como imagen adjunta directamente.');
-    } else if (m.message?.documentMessage && (m.text?.startsWith(usedPrefix + command) || m.text === '')) {
-        messageContent = m.message.documentMessage;
-        isDocument = true;
-        console.log('Detectado como documento adjunto directamente.');
-    } 
-    // Caso 2: Comando es una respuesta a un mensaje multimedia (ej: respondes a una imagen con ".subircomprobante nombre")
-    else if (m.quoted) {
-        if (m.quoted.message?.imageMessage) {
+
+    if (!m.isOwner) {
+        return m.reply('❌ Solo el propietario del bot puede usar este comando.');
+    }
+    
+    let messageContent = null; // Contendrá el objeto de mensaje real con la media
+    let isImage = false;
+    let isDocument = false;
+
+    // PRUEBA DE LÓGICA DE DETECCIÓN MEJORADA
+    // 1. Priorizar el contenido si es una respuesta a un mensaje multimedia
+    if (m.quoted?.message) {
+        if (m.quoted.message.imageMessage) {
             messageContent = m.quoted.message.imageMessage;
             isImage = true;
             console.log('Detectado como respuesta a una imagen.');
-        } else if (m.quoted.message?.documentMessage) {
+        } else if (m.quoted.message.documentMessage) {
             messageContent = m.quoted.message.documentMessage;
             isDocument = true;
             console.log('Detectado como respuesta a un documento.');
+        } else if (m.quoted.message.videoMessage) { // Si también quieres aceptar videos
+            messageContent = m.quoted.message.videoMessage;
+            isDocument = false; // O poner isVideo = true, pero para este comando nos interesa img/doc
+            console.log('Detectado como respuesta a un video (considerado como documento).');
+        }
+    }
+
+    // 2. Si no es una respuesta a media, verificar si la media está adjunta directamente al mensaje actual (con o sin caption)
+    if (!messageContent) { // Solo si messageContent aún no se ha establecido
+        if (m.message?.imageMessage) {
+            messageContent = m.message.imageMessage;
+            isImage = true;
+            console.log('Detectado como imagen adjunta directamente.');
+        } else if (m.message?.documentMessage) {
+            messageContent = m.message.documentMessage;
+            isDocument = true;
+            console.log('Detectado como documento adjunto directamente.');
+        } else if (m.message?.videoMessage) { // Si también quieres aceptar videos
+            messageContent = m.message.videoMessage;
+            isDocument = false; // O poner isVideo = true
+            console.log('Detectado como video adjunto directamente (considerado como documento).');
         }
     }
 
