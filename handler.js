@@ -239,41 +239,40 @@ export async function handler(m, conn, store) {
     if (!m) return;
     if (m.key.fromMe) return;
 
-    // Eliminamos el reseteo global del estado del chat para evitar que se pierda el nombre del usuario
-    // if (!hasResetOnStartup) {
-    //     const allUsers = await new Promise((resolve, reject) => {
-    //         global.db.data.users.find({}, (err, docs) => {
-    //             if (err) return reject(err);
-    //             resolve(docs);
-    //         });
-    //     });
-    //     if (allUsers.length > 0) {
-    //         await new Promise((resolve, reject) => {
-    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-    //                 if (err) return reject(err);
-    //                 resolve();
-    //             });
-    //         });
-    //     }
-    //     hasResetOnStartup = true;
-    //     lastResetTime = Date.now();
-    // } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
-    //     const allUsers = await new Promise((resolve, reject) => {
-    //         global.db.data.users.find({}, (err, docs) => {
-    //             if (err) return reject(err);
-    //             resolve(docs);
-    //         });
-    //     });
-    //     if (allUsers.length > 0) {
-    //         await new Promise((resolve, reject) => {
-    //             global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
-    //                 if (err) return reject(err);
-    //                 resolve();
-    //             });
-    //         });
-    //     }
-    //     lastResetTime = Date.now();
-    // }
+     if (!hasResetOnStartup) {
+         const allUsers = await new Promise((resolve, reject) => {
+             global.db.data.users.find({}, (err, docs) => {
+                if (err) return reject(err);
+                 resolve(docs);
+             });
+         });
+         if (allUsers.length > 0) {
+             await new Promise((resolve, reject) => {
+                 global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+                     if (err) return reject(err);
+                     resolve();
+                 });
+             });
+         }
+         hasResetOnStartup = true;
+         lastResetTime = Date.now();
+     } else if (Date.now() - lastResetTime > RESET_INTERVAL_MS) {
+         const allUsers = await new Promise((resolve, reject) => {
+             global.db.data.users.find({}, (err, docs) => {
+                 if (err) return reject(err);
+                 resolve(docs);
+             });
+         });
+         if (allUsers.length > 0) {
+             await new Promise((resolve, reject) => {
+                 global.db.data.users.update({}, { $set: { chatState: 'initial' } }, { multi: true }, (err, numReplaced) => {
+                     if (err) return reject(err);
+                     resolve();
+                 });
+             });
+         }
+         lastResetTime = Date.now();
+     }
     
     const isGroup = m.key.remoteJid?.endsWith('@g.us');
     
