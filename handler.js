@@ -382,7 +382,7 @@ export async function handler(m, conn, store) {
         }
         
         // Manejar las fotos con el mensaje específico
-        if (m.message?.imageMessage && !m.message?.imageMessage?.caption) {
+        if (!m.isGroup && m.message?.imageMessage && !m.message?.imageMessage?.caption) {
             await m.reply("Si estas intentando mandar un comprobante de pago por favor envialo junto con el texto \"Aquí esta mi comprobante de pago\"");
             return;
         }
