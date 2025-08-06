@@ -108,20 +108,49 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
         return m.reply('❌ Solo el propietario del bot puede usar este comando.');
     }
     
-    // Identificar el tipo de mensaje para buscar la imagen
-    const quoted = m.quoted ? m.quoted : m;
-    
-    // MODIFICACIÓN CLAVE AQUÍ: Simplificamos la detección de la imagen/documento
-    const isImage = !!quoted.message?.imageMessage; // Usa !! para convertir a booleano
-    const isDocument = !!quoted.message?.documentMessage; // Usa !! para convertir a booleano
-    
+    let messageContent;
+    let isImage = false;
+    let isDocument = false;
+
+    // Caso 1: Media adjunta directamente con el comando (ej: imagen con caption ".subircomprobante nombre")
+    if ((m.message?.imageMessage && m.text?.startsWith(usedPrefix + command)) || (m.message?.imageMessage && m.text === '')) {
+        messageContent = m.message.imageMessage;
+        isImage = true;
+    } else if ((m.message?.documentMessage && m.text?.startsWith(usedPrefix + command)) || (m.message?.documentMessage && m.text === '')) {
+        messageContent = m.message.documentMessage;
+        isDocument = true;
+    } 
+    // Caso 2: Comando es una respuesta a un mensaje multimedia
+    else if (m.quoted) {
+        if (m.quoted.message?.imageMessage) {
+            messageContent = m.quoted.message.imageMessage;
+            isImage = true;
+        } else if (m.quoted.message?.documentMessage) {
+            messageContent = m.quoted.message.documentMessage;
+            isDocument = true;
+        }
+    }
+
     if (!isImage && !isDocument) {
         return m.reply(`❌ Debes usar este comando respondiendo a una imagen o documento de comprobante, o adjuntando la imagen en el mensaje.`);
     }
 
     const clientNameOrNumber = text.trim();
     if (!clientNameOrNumber) {
-        return m.reply(`❌ Debes especificar el nombre o número del cliente. Uso correcto: \`${usedPrefix + command} nombre_cliente\` o \`${usedPrefix + command} +521...\``);
+        // Si no se proporcionó texto de comando, intentar obtenerlo de un mensaje citado si es una respuesta
+        if (m.quoted && m.quoted.text) {
+            const quotedText = m.quoted.text.trim();
+            // Buscar si el texto citado contiene el comando para extraer el nombre/número
+            if (quotedText.startsWith(usedPrefix + command)) {
+                const args = quotedText.slice(usedPrefix.length).trim().split(/ +/).filter(v => v);
+                if (args.length > 1) { // Si hay algo después del comando
+                    text = args.slice(1).join(' '); // Obtener el resto como nombre/número
+                }
+            }
+        }
+        if (!text.trim()) { // Si aún no hay nombre/número
+            return m.reply(`❌ Debes especificar el nombre o número del cliente. Uso correcto: \`${usedPrefix + command} nombre_cliente\` o \`${usedPrefix + command} +521...\``);
+        }
     }
     
     try {
@@ -145,7 +174,7 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
         }
         
         const clientInfo = paymentsData[clientKey];
-        const messageContent = isImage ? quoted.message.imageMessage : quoted.message.documentMessage;
+        // messageContent ya está definido y contiene el objeto imageMessage/documentMessage
 
         const result = await processPaymentProofAndSave(conn, messageContent, clientKey, clientInfo, isImage);
 
