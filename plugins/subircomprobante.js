@@ -110,8 +110,10 @@ export async function handler(m, { conn, text, usedPrefix, command }) {
     
     // Identificar el tipo de mensaje para buscar la imagen
     const quoted = m.quoted ? m.quoted : m;
-    const isImage = (quoted.message?.imageMessage && m.text.startsWith(usedPrefix + command)) || (quoted.message?.imageMessage && quoted.isCommand);
-    const isDocument = (quoted.message?.documentMessage && m.text.startsWith(usedPrefix + command)) || (quoted.message?.documentMessage && quoted.isCommand);
+    
+    // MODIFICACIÓN CLAVE AQUÍ: Simplificamos la detección de la imagen/documento
+    const isImage = !!quoted.message?.imageMessage; // Usa !! para convertir a booleano
+    const isDocument = !!quoted.message?.documentMessage; // Usa !! para convertir a booleano
     
     if (!isImage && !isDocument) {
         return m.reply(`❌ Debes usar este comando respondiendo a una imagen o documento de comprobante, o adjuntando la imagen en el mensaje.`);
