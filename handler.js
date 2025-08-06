@@ -392,20 +392,11 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
-            const paymentsFilePath = path.join(__dirname, 'src', 'pagos.json');
-            let clientInfo = null;
-
-            try {
-                if (fs.existsSync(paymentsFilePath)) {
-                    const clientsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
-                    const formattedNumber = `+${m.sender.split('@')[0]}`;
-                    clientInfo = clientsData[formattedNumber];
-                }
-            } catch (e) {
-                console.error("Error al leer pagos.json en handler.js:", e);
-            }
+            // No es necesario leer payments.json aquí para pasar clientInfo a handleIncomingMedia,
+            // ya que handleIncomingMedia no lo espera. La lógica de clienteInfo se maneja dentro de comprobantes.js.
             
-            const handledMedia = await handleIncomingMedia(m, conn, clientInfo);
+            // **Línea modificada:**
+            const handledMedia = await handleIncomingMedia(m, conn); // Eliminar clientInfo
             if (handledMedia) {
                 return;
             }
