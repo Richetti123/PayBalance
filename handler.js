@@ -529,7 +529,7 @@ export async function handler(m, conn, store) {
                         await subirComprobanteHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     default:
-                        m.reply('❌ Comando no reconocido. Escribe .ayuda para ver la lista de comandos.');
+                        console.log(`[❌ COMANDO NO RECONOCIDO] El usuario ${m.pushName || m.sender} usó el comando: ${m.command}`);
                         break;
                 }
             } else {
