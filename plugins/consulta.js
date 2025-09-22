@@ -3,9 +3,46 @@ import chalk from 'chalk';
 import fetch from 'node-fetch';
 
 const paymentsFilePath = './src/pagos.json';
+const configFilePath = './src/consulta_config.json';
+
+// Cargar o inicializar el estado de la función de consultas
+let consultaEnabled = true;
+if (fs.existsSync(configFilePath)) {
+    try {
+        const configData = JSON.parse(fs.readFileSync(configFilePath, 'utf8'));
+        consultaEnabled = configData.enabled;
+    } catch (e) {
+        console.error('Error al leer el archivo de configuración, usando valor por defecto.');
+    }
+} else {
+    fs.writeFileSync(configFilePath, JSON.stringify({ enabled: true }, null, 2));
+}
 
 // La función ahora se activará para todos los mensajes, actuando como un chatbot.
-export async function handler(m, { conn, text }) {
+export async function handler(m, { conn, text, command, usedPrefix, args }) {
+    
+    // --- Lógica para activar/desactivar la función de consultas ---
+    const isToggleCommand = ['on', 'off'].includes(command) && args[0] === 'consulta';
+
+    if (isToggleCommand) {
+        const newStatus = command === 'on';
+        if (newStatus === consultaEnabled) {
+            m.reply(`La función de consulta ya está ${newStatus ? 'activada' : 'desactivada'}.`);
+            return;
+        }
+
+        consultaEnabled = newStatus;
+        fs.writeFileSync(configFilePath, JSON.stringify({ enabled: consultaEnabled }, null, 2));
+        m.reply(`Función de consulta ${consultaEnabled ? 'activada' : 'desactivada'}.`);
+        return;
+    }
+    // --- Fin de la lógica de activación/desactivación ---
+
+    // Si la función de consulta está desactivada, salimos de la función
+    if (!consultaEnabled) {
+        return;
+    }
+    
     // Lista de números que el bot debe ignorar
     const ignoredNumbers = ['56923867469', '56930582304'];
     const userNumber = m.isGroup ? m.key.participant.split('@')[0] : m.sender.split('@')[0];
