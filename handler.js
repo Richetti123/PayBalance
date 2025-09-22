@@ -33,6 +33,7 @@ import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 import { handler as updateHandler } from './plugins/update.js';
 import { handler as subirComprobanteHandler } from './plugins/subircomprobante.js';
+import { handler as consultaHandler } from './plugins/consulta.js'; // Asegúrate de que la ruta sea correcta
 
 const normalizarNumero = (numero) => {
     if (!numero) return numero;
