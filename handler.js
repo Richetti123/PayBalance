@@ -515,7 +515,7 @@ export async function handler(m, conn, store) {
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await comprobantePagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
-                    case 'config-on-off':
+                    case 'config':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await getCommandsState(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
