@@ -4,12 +4,10 @@ import fetch from 'node-fetch';
 
 const paymentsFilePath = './src/pagos.json';
 
-// La función ahora se activará para todos los mensajes, actuando como un chatbot.
 export async function handler(m, { conn, text }) {
-    // Si el mensaje no es de un grupo o es un comando, no hace nada.
-    if (!m.isGroup || m.text?.startsWith(m.prefix)) {
-        return;
-    }
+    if (!m.isGroup || m.text?.startsWith(m.prefix)) {
+        return;
+    }
 
   try {
     console.log(`[Chatbot] Mensaje recibido: ${text}`);
@@ -50,17 +48,26 @@ export async function handler(m, { conn, text }) {
     }
 
     // --- Lógica para reinicio y problemas del bot ---
-    const botIssueKeywords = ['reinicio', 'reiniciar', 'bot no funciona', 'bot lento', 'bot', 'problema', 'error', 'caido'];
+    const botIssueKeywords = ['reinicio', 'reiniciar', 'bot no funciona', 'bot lento', 'bot no anda', 'no anda', 'problema', 'error', 'caido'];
     const isBotIssueIntent = botIssueKeywords.some(keyword => messageTextLower.includes(keyword));
 
     if (isBotIssueIntent) {
       // Número del desarrollador en formato JID
       const ownerJid = '34641307273@s.whatsapp.net';
-      
-      // Mensaje a enviar al desarrollador
+      
+      // Obtener el número del usuario sin el sufijo de WhatsApp
       const userNumber = m.key.participant.split('@')[0];
-      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: ${userNumber}\nMensaje: ${text}`;
-      
+      
+      // Cargar datos de pagos para buscar el nombre del usuario
+      const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
+      const userData = paymentsData[userNumber];
+      
+      // Formato de usuario con nombre si está en la base de datos
+      const userName = userData && userData.nombre ? ` (${userData.nombre})` : '';
+      
+      // Mensaje a enviar al desarrollador
+      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: +${userNumber} (${userName})\nMensaje: ${text}`;
+      
       // Enviar el mensaje de alerta al desarrollador
       await conn.sendMessage(ownerJid, { text: alertMessage });
 
