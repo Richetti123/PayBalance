@@ -29,26 +29,14 @@ export function saveCommandsState(state) {
 
 // Handler principal para el comando de activación/desactivación
 export async function handler(m, { conn, text, command, usedPrefix }) {
-    // 🔍 AÑADIDOS LOGS PARA DEPURAR
-    console.log('-----------------------------------');
-    console.log('DEBUG: Invocando el comando TOGGLE');
-    console.log('DEBUG: Texto completo recibido:', text);
-    console.log('DEBUG: Comando recibido:', command);
-    console.log('-----------------------------------');
-    
     if (!m.isOwner) {
         return m.reply('❌ Este comando solo puede ser usado por el dueño del bot.');
     }
 
-    const args = text.split(' ').slice(1);
+    // ✅ AHORA EL COMANDO ESPERA EL TEXTO PROCESADO
+    const args = text.split(' ');
     const action = args[0];
     const commandName = args[1];
-
-    // 🔍 LOGS PARA MOSTRAR LOS ARGUMENTOS PARSEADOS
-    console.log('DEBUG: Argumentos parseados:', args);
-    console.log('DEBUG: Acción (on/off):', action);
-    console.log('DEBUG: Nombre del comando:', commandName);
-    console.log('-----------------------------------');
 
     if (!action || !commandName || (action !== 'on' && action !== 'off')) {
         return m.reply(`*Uso incorrecto del comando:*\nUsa ${usedPrefix}${command} <on|off> <nombre_del_comando>.\nEjemplo: \`\`\`${usedPrefix}${command} off consulta\`\`\``);
