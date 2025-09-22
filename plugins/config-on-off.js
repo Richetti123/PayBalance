@@ -60,6 +60,7 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
     }
 }
 
-handler.help = ['config <on|off> <comando>'];
+handler.help = ['toggle <on|off> <comando>'];
 handler.tags = ['owner'];
-handler.command = /^(config)$/i;
+handler.command = /^(toggle)$/i;
+handler.owner = true;
