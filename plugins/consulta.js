@@ -66,7 +66,7 @@ export async function handler(m, { conn, text }) {
       const userName = userData && userData.nombre ? ` (${userData.nombre})` : '';
       
       // Mensaje a enviar al desarrollador
-      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: +${userNumber} (${userName})\nMensaje: ${text}`;
+      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: +${userNumber}${userName}\nMensaje: ${text}`;
       
       // Enviar el mensaje de alerta al desarrollador
       await conn.sendMessage(ownerJid, { text: alertMessage });
