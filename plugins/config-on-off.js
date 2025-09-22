@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const configFile = path.join(__dirname, '..', 'src', 'commands-state.json');
 
-// ✅ Función que lee el estado de los comandos, ahora exportada
+// Función que lee el estado de los comandos, ahora exportada
 export function getCommandsState() {
     try {
         if (fs.existsSync(configFile)) {
@@ -18,7 +18,7 @@ export function getCommandsState() {
     return {};
 }
 
-// ✅ Función que guarda el estado de los comandos, también exportada por si la necesitas en el futuro
+// Función que guarda el estado de los comandos, también exportada por si la necesitas en el futuro
 export function saveCommandsState(state) {
     try {
         fs.writeFileSync(configFile, JSON.stringify(state, null, 2), 'utf8');
@@ -29,6 +29,13 @@ export function saveCommandsState(state) {
 
 // Handler principal para el comando de activación/desactivación
 export async function handler(m, { conn, text, command, usedPrefix }) {
+    // 🔍 AÑADIDOS LOGS PARA DEPURAR
+    console.log('-----------------------------------');
+    console.log('DEBUG: Invocando el comando TOGGLE');
+    console.log('DEBUG: Texto completo recibido:', text);
+    console.log('DEBUG: Comando recibido:', command);
+    console.log('-----------------------------------');
+    
     if (!m.isOwner) {
         return m.reply('❌ Este comando solo puede ser usado por el dueño del bot.');
     }
@@ -36,6 +43,12 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
     const args = text.split(' ').slice(1);
     const action = args[0];
     const commandName = args[1];
+
+    // 🔍 LOGS PARA MOSTRAR LOS ARGUMENTOS PARSEADOS
+    console.log('DEBUG: Argumentos parseados:', args);
+    console.log('DEBUG: Acción (on/off):', action);
+    console.log('DEBUG: Nombre del comando:', commandName);
+    console.log('-----------------------------------');
 
     if (!action || !commandName || (action !== 'on' && action !== 'off')) {
         return m.reply(`*Uso incorrecto del comando:*\nUsa ${usedPrefix}${command} <on|off> <nombre_del_comando>.\nEjemplo: \`\`\`${usedPrefix}${command} off consulta\`\`\``);
