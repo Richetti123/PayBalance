@@ -33,7 +33,6 @@ import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 import { handler as updateHandler } from './plugins/update.js';
 import { handler as subirComprobanteHandler } from './plugins/subircomprobante.js';
-import { handler as consultaHandler } from './plugins/consulta.js';
 
 const normalizarNumero = (numero) => {
     if (!numero) return numero;
@@ -513,10 +512,6 @@ export async function handler(m, conn, store) {
                     case 'comprobantepago':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await comprobantePagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
-                        break;
-                    case 'consulta':
-                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await consultaHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'update':
                     case 'actualizar':
