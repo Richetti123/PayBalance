@@ -535,6 +535,7 @@ export async function handler(m, conn, store) {
         }
 
         if (!m.isGroup) {
+            await consultaHandler(m, { conn, text: m.text });
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
             const chatData = loadChatData();
