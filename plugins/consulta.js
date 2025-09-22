@@ -44,7 +44,7 @@ const handler = async (m, { conn, text }) => {
       }
     }
 
-    // --- Lógica añadida para reinicio y problemas del bot ---
+    // --- Lógica para reinicio y problemas del bot ---
     const botIssueKeywords = ['reinicio', 'reiniciar', 'bot no funciona', 'bot lento', 'bot', 'problema', 'error', 'caido'];
     const isBotIssueIntent = botIssueKeywords.some(keyword => messageTextLower.includes(keyword));
 
@@ -62,8 +62,7 @@ const handler = async (m, { conn, text }) => {
       await m.reply('He notificado a soporte sobre este inconveniente. Por favor, espera mientras resuelven el problema.');
       return;
     }
-    // --- Fin de la lógica añadida ---
-
+    // --- Fin de la lógica ---
 
     // Cargar datos de pagos
     const paymentsData = JSON.parse(fs.readFileSync(paymentsFilePath, 'utf8'));
@@ -138,5 +137,5 @@ Has aprendido que tus servicios son:
   }
 };
 
-// Se elimina el `handler.command` para que se active en cada mensaje.
-// export { handler }; // Solo se exporta el handler sin la propiedad command
+// Esta línea de exportación es crucial para que otros archivos puedan usar la función.
+export { handler };
