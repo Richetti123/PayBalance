@@ -534,6 +534,9 @@ export async function handler(m, conn, store) {
             return;
         }
 
+        if (m.isGroup && !m.text.startsWith(m.prefix)) {
+            await consultaHandler(m, { conn, text: rawText, command: 'consulta', usedPrefix: m.prefix });
+
         if (!m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
