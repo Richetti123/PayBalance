@@ -63,5 +63,3 @@ export async function handler(m, { conn, text, command, usedPrefix }) {
 handler.help = ['toggle <on|off> <comando>'];
 handler.tags = ['owner'];
 handler.command = /^(toggle)$/i;
-
-export { handler };
