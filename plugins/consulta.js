@@ -48,7 +48,7 @@ export async function handler(m, { conn, text }) {
     }
 
     // --- Lógica para reinicio y problemas del bot ---
-    const botIssueKeywords = ['reinicio', 'reiniciar', 'bot no funciona', 'bot lento', 'bot no anda', 'no anda', 'problema', 'error', 'caido'];
+    const botIssueKeywords = ['reinicio', 'reiniciar', 'bot no funciona', 'bot lento', 'bot no anda', 'bot fallando', 'bot', 'no anda', 'problema', 'error', 'caido'];
     const isBotIssueIntent = botIssueKeywords.some(keyword => messageTextLower.includes(keyword));
 
     if (isBotIssueIntent) {
