@@ -34,7 +34,7 @@ import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js'
 import { handler as updateHandler } from './plugins/update.js';
 import { handler as subirComprobanteHandler } from './plugins/subircomprobante.js';
 import { handler as consultaHandler } from './plugins/consulta.js'; // Asegúrate de que la ruta sea correcta
-import { getCommandsState } from './plugins/config-on-off.js';
+import { handler as toggleHandler, getCommandsState } from './plugins/config-on-off.js';
 
 const normalizarNumero = (numero) => {
     if (!numero) return numero;
@@ -515,9 +515,8 @@ export async function handler(m, conn, store) {
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await comprobantePagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
-                    case 'config':
-                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await getCommandsState(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
+                    case 'toggle':
+                        await toggleHandler(m, { conn, text: rawText, command, usedPrefix, args });
                         break;
                     case 'update':
                     case 'actualizar':
