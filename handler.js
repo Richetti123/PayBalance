@@ -514,7 +514,7 @@ export async function handler(m, conn, store) {
                         break;
                     case 'toggle':
                         if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
-                        await toggleHandler(m, { conn, text: rawText, command, usedPrefix, args });
+                        await toggleHandler(m, { conn, text: rawText, command, usedPrefix });
                         break;
                     case 'update':
                     case 'actualizar':
