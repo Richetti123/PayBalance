@@ -58,7 +58,7 @@ export async function handler(m, { conn, text }) {
       const ownerJid = '34641307273@s.whatsapp.net';
       
       // Mensaje a enviar al desarrollador
-      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: ${m.sender}\nMensaje: ${text}`;
+      const alertMessage = `[Alerta de Bot] Un usuario reportó un problema.\n\nUsuario: ${m.key.participant}\nMensaje: ${text}`;
       
       // Enviar el mensaje de alerta al desarrollador
       await conn.sendMessage(ownerJid, { text: alertMessage });
