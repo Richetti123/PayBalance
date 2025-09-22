@@ -33,7 +33,7 @@ import { handler as recordatorioHandler } from './plugins/recordatorios.js';
 import { handler as comprobantePagoHandler } from './plugins/comprobantepago.js';
 import { handler as updateHandler } from './plugins/update.js';
 import { handler as subirComprobanteHandler } from './plugins/subircomprobante.js';
-import { handler as consultaHandler } from './plugins/consulta.js'; // Asegúrate de que la ruta sea correcta
+import { handler as consultaHandler } from './plugins/consulta.js';
 import { handler as toggleHandler, getCommandsState } from './plugins/config-on-off.js';
 
 const normalizarNumero = (numero) => {
@@ -392,11 +392,8 @@ export async function handler(m, conn, store) {
         const esDocumentoConComprobante = m.message?.documentMessage?.caption && isPaymentProof(m.message.documentMessage.caption);
         
         if (esImagenConComprobante || esDocumentoConComprobante) {
-            // No es necesario leer payments.json aquí para pasar clientInfo a handleIncomingMedia,
-            // ya que handleIncomingMedia no lo espera. La lógica de clienteInfo se maneja dentro de comprobantes.js.
             
-            // **Línea modificada:**
-            const handledMedia = await handleIncomingMedia(m, conn); // Eliminar clientInfo
+            const handledMedia = await handleIncomingMedia(m, conn);
             if (handledMedia) {
                 return;
             }
@@ -516,6 +513,7 @@ export async function handler(m, conn, store) {
                         await comprobantePagoHandler(m, { conn, text: commandText, command: m.command, usedPrefix: m.prefix, isOwner: m.isOwner });
                         break;
                     case 'toggle':
+                        if (!m.isOwner) return m.reply(`❌ Solo el propietario puede usar este comando.`);
                         await toggleHandler(m, { conn, text: rawText, command, usedPrefix, args });
                         break;
                     case 'update':
@@ -538,10 +536,11 @@ export async function handler(m, conn, store) {
             return;
         }
 
-        if (m.isGroup && !m.text.startsWith(m.prefix)) {
+        const commandsState = getCommandsState();
+        if (m.isGroup && !m.text.startsWith(m.prefix) && commandsState.consulta !== false) {
             await consultaHandler(m, { conn, text: rawText, command: 'consulta', usedPrefix: m.prefix });
         }
-
+        
         if (!m.isGroup) {
             const currentConfigData = loadConfigBot();
             const faqs = currentConfigData.faqs || {};
@@ -618,8 +617,6 @@ export async function handler(m, conn, store) {
                     }
 
                     if (name) {
-                        // Se corrige el bug: se utiliza formattedSender para guardar,
-                        // para que coincida con la clave utilizada al cargar.
                         const formattedSenderForSave = normalizarNumero(`+${m.sender.split('@')[0]}`);
                         userChatData.nombre = name.charAt(0).toUpperCase() + name.slice(1);
                         
